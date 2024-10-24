@@ -1,3 +1,47 @@
+[build-system]
+requires = ["setuptools>=61.2"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ckanext-unfold"
+version = "1.0.3"
+description = "Provides previews for multiple archive formats"
+authors = [
+    {name = "DataShades", email = "datashades@linkdigital.com.au"},
+    {name = "Oleksandr Cherniavskyi", email = "mutantsan@gmail.com"},
+]
+maintainers = [
+    {name = "DataShades", email = "datashades@linkdigital.com.au"},
+]
+license = {text = "AGPL"}
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "License :: OSI Approved :: GNU Affero General Public License v3 or later (AGPLv3+)",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+]
+keywords = ["CKAN"]
+urls = {Homepage = "https://github.com/DataShades/ckanext-unfold"}
+dependencies = [
+    "rarfile==4.0",
+    "py7zr==0.20.6",
+    "rpmfile==1.1.1",
+    "pydantic==2.3.0",
+]
+optional-dependencies = {}
+
+[project.readme]
+file = "README.md"
+content-type = "text/markdown"
+
+[project.entry-points]
+"ckan.plugins" = {unfold = "ckanext.unfold.plugin:UnfoldPlugin"}
+"babel.extractors" = {ckan = "ckan.lib.extract:extract_ckan"}
+
+[tool.setuptools.packages]
+find = {}
+
 [tool.black]
 # line-length = 88
 # preview = true
