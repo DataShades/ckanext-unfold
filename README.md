@@ -1,4 +1,4 @@
-[![Tests](https://github.com/mutantsan/ckanext-unfold/workflows/Tests/badge.svg?branch=master)](https://github.com/mutantsan/ckanext-unfold/actions)
+[![Tests](https://github.com/DataShades/ckanext-unfold/workflows/Tests/badge.svg?branch=master)](https://github.com/DataShades/ckanext-unfold/actions)
 
 # ckanext-unfold
 
