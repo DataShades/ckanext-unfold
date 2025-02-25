@@ -16,7 +16,7 @@ log = logging.getLogger(__name__)
 
 def build_directory_tree(
     filepath: str, resource_view: dict[str, Any], remote: Optional[bool] = False
-):
+) -> list[unf_types.Node]:
     try:
         if remote:
             file_list = get_rpmlist_from_url(filepath)

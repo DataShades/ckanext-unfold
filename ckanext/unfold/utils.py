@@ -4,7 +4,7 @@ import json
 import logging
 import math
 import pathlib
-from typing import Any
+from typing import Any, Callable
 
 import ckan.lib.uploader as uploader
 from ckan.lib.redis import connect_to_redis
@@ -108,7 +108,7 @@ def save_archive_structure(nodes: list[unf_types.Node], resource_id: str) -> Non
     conn.close()
 
 
-def get_archive_structure(resource_id: str) -> list[dict[str, Any]] | None:
+def get_archive_structure(resource_id: str) -> list[unf_types.Node] | None:
     """Retrieve an archive structure from redis"""
     conn = connect_to_redis()
     data = conn.get(f"ckanext:unfold:tree:{resource_id}")
@@ -126,7 +126,7 @@ def delete_archive_structure(resource_id: str) -> None:
 
 def get_archive_tree(
     resource: dict[str, Any], resource_view: dict[str, Any]
-) -> list[unf_types.Node] | list[dict[str, Any]]:
+) -> list[unf_types.Node]:
     remote = False
 
     if resource.get("url_type") == "upload":
@@ -139,16 +139,18 @@ def get_archive_tree(
         filepath = resource["url"]
         remote = True
 
-    tree = get_archive_structure(resource["id"])
+    if tree := get_archive_structure(resource["id"]):
+        return tree
 
-    if not tree:
-        res_format = resource["format"].lower()
-
-        if res_format not in unf_adapters.ADAPTERS:
-            raise unf_exception.UnfoldError(f"No adapter for `{res_format}` archives")
-
-        tree = unf_adapters.ADAPTERS[res_format](filepath, resource_view, remote=remote)
-
-        save_archive_structure(tree, resource["id"])
+    adapter = get_adapter_for_format(resource["format"].lower())
+    tree = adapter(filepath, resource_view, remote=remote)
+    save_archive_structure(tree, resource["id"])
 
     return tree
+
+
+def get_adapter_for_format(res_format: str) -> Callable[..., list[unf_types.Node]]:
+    if res_format not in unf_adapters.ADAPTERS:
+        raise unf_exception.UnfoldError(f"No adapter for `{res_format}` archives")
+
+    return unf_adapters.ADAPTERS[res_format]

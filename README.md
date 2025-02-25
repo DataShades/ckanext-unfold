@@ -56,6 +56,10 @@ We are using [`rpmfile`](https://github.com/srossross/rpmfile) library.
 
 If you want to use rpmfile with zstd compressed rpms, you'll need to install the [`zstandard`](https://pypi.org/project/zstandard/) module.
 
+### DEB, A, AR, LIB
+
+We are using [`ar`](https://github.com/vidstige/ar) library. Please consider referring to the official documentation for more information.
+
 ## License
 
 [AGPL](https://www.gnu.org/licenses/agpl-3.0.en.html)

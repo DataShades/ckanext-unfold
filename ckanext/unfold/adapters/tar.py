@@ -23,14 +23,14 @@ def build_directory_tree(
     resource_view: dict[str, Any],
     remote: Optional[bool] = False,
     compression: Optional[str] = None,
-):
+) -> list[unf_types.Node]:
     mode = "r" if not compression else f"r:{compression}"
 
     try:
         if remote:
             file_list = get_tarlist_from_url(filepath)
         else:
-            with tarfile.open(filepath, mode) as archive:
+            with tarfile.open(filepath, mode) as archive: # type: ignore
                 # TODO: tarfile library doesn't have built-in support
                 # for checking whether a TAR file is protected with a password
                 # investigate it if someone will have such a problem lately
