@@ -20,6 +20,8 @@ log = logging.getLogger(__name__)
 
 def get_icon_by_format(fmt: str) -> str:
     default_icon = "fa fa-file"
+    fmt = fmt.lstrip(".")
+
     icons = {
         ("csv",): "fa fa-file-csv",
         ("txt", "tsv", "ini", "nfo", "log"): "fa fa-file-text",
