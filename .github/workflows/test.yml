@@ -4,15 +4,13 @@ jobs:
   test:
     runs-on: ubuntu-latest
     container:
-      # The CKAN version tag of the Solr and Postgres containers should match
-      # the one of the container the tests run on.
-      # You can switch this base image with a custom image tailored to your project
-      image: openknowledge/ckan-dev:2.10.1
+      image: ckan/ckan-dev:2.10-py3.10
+      options: --user root
     services:
       solr:
-        image: ckan/ckan-solr-dev:2.9
+        image: ckan/ckan-solr:2.10
       postgres:
-        image: ckan/ckan-postgres-dev:2.9
+        image: ckan/ckan-postgres-dev:2.10
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
@@ -20,7 +18,6 @@ jobs:
         options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
       redis:
           image: redis:3
-
     env:
       CKAN_SQLALCHEMY_URL: postgresql://ckan_default:pass@postgres/ckan_test
       CKAN_DATASTORE_WRITE_URL: postgresql://datastore_write:pass@postgres/datastore_test
@@ -29,12 +26,11 @@ jobs:
       CKAN_REDIS_URL: redis://redis:6379/1
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
     - name: Install requirements
       # Install any extra requirements your extension has here (dev requirements, other extensions etc)
       run: |
-        pip install -r requirements.txt
-        pip install -r dev-requirements.txt
+        pip install --upgrade pip
         pip install -e .
     - name: Setup extension
       # Extra initialization steps
