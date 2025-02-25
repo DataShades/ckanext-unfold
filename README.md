@@ -4,6 +4,8 @@
 
 Enhance your CKAN experience with our extension that enables seamless previews of various archive formats, ensuring easy access and efficient data management.
 
+![Plugin presentation](doc/image.png)
+
 ## Supported Versions
 
 CKAN >= 2.10
