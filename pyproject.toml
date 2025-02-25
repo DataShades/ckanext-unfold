@@ -30,7 +30,9 @@ dependencies = [
     "pydantic>=2.3.0,<3.0.0",
     "ar>=1.0.0,<2.0.0",
 ]
-optional-dependencies = {}
+
+[project.optional-dependencies]
+dev = ["pytest-ckan"]
 
 [project.readme]
 file = "README.md"
