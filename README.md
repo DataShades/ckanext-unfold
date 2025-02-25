@@ -8,7 +8,7 @@ Enhance your CKAN experience with our extension that enables seamless previews o
 
 Features:
 - Represents an archive as a file tree
-- Supports the following archive formats: ZIP, RAR, 7Z, TAR, TAR.XZ, TAR.GZ, TAR.BZ2, DEB, RPM, CBR, JAR, A, AR, LIB
+- Supports the following archive formats: ZIP, ZIPX, JAR, RAR, CBR, 7Z, TAR, TAR.XZ, TAR.GZ, TAR.BZ2, DEB, RPM, A, AR, LIB
 - Password-protected archives support for RAR format
 - Caching the file tree for faster access
 - File and folder search
