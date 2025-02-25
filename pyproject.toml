@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ckanext-unfold"
-version = "1.1.4"
+version = "1.1.5"
 description = "Provides previews for multiple archive formats"
 authors = [
     {name = "DataShades", email = "datashades@linkdigital.com.au"},
@@ -29,6 +29,7 @@ dependencies = [
     "rpmfile==1.1.1",
     "pydantic>=2.3.0,<3.0.0",
     "ar>=1.0.0,<2.0.0",
+    "zstandard>=0.21.0,<1.0.0",
 ]
 
 [project.optional-dependencies]
