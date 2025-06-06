@@ -9,8 +9,8 @@ from typing import Any, Callable
 import ckan.lib.uploader as uploader
 from ckan.lib.redis import connect_to_redis
 
-import ckanext.unfold.exception as unf_exception
 import ckanext.unfold.adapters as unf_adapters
+import ckanext.unfold.exception as unf_exception
 import ckanext.unfold.types as unf_types
 
 DEFAULT_DATE_FORMAT = "%d/%m/%Y - %H:%M"

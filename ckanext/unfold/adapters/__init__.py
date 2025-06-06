@@ -1,6 +1,6 @@
 from functools import partial
 
-from . import _7z, rar, rpm, tar, zip, ar
+from . import _7z, ar, rar, rpm, tar, zip
 
 ADAPTERS = {
     "rar": rar.build_directory_tree,

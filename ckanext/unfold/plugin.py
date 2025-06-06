@@ -4,6 +4,7 @@ from typing import Any
 
 import ckan.plugins as plugins
 import ckan.plugins.toolkit as tk
+from ckan.common import CKANConfig
 from ckan.types import Context, DataDict
 
 import ckanext.unfold.adapters as unf_adapters
@@ -20,7 +21,7 @@ class UnfoldPlugin(plugins.SingletonPlugin):
 
     # IConfigurer
 
-    def update_config(self, config_):
+    def update_config(self, config_: CKANConfig):
         tk.add_template_directory(config_, "templates")
         tk.add_public_directory(config_, "public")
         tk.add_resource("assets", "unfold")

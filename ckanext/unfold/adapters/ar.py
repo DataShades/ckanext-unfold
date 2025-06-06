@@ -6,7 +6,7 @@ from typing import Any, Optional
 
 import requests
 from ar import Archive
-from ar.archive import ArPath, Archive, ArchiveError
+from ar.archive import Archive, ArchiveError, ArPath
 
 import ckanext.unfold.exception as unf_exception
 import ckanext.unfold.types as unf_types
