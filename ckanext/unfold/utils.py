@@ -10,7 +10,9 @@ import ckan.lib.uploader as uploader
 from ckan.lib.redis import connect_to_redis
 
 import ckanext.unfold.adapters as unf_adapters
+import ckanext.unfold.config as unf_config
 import ckanext.unfold.exception as unf_exception
+import ckanext.unfold.truncate as unf_truncate
 import ckanext.unfold.types as unf_types
 
 DEFAULT_DATE_FORMAT = "%d/%m/%Y - %H:%M"
@@ -141,14 +143,48 @@ def get_archive_tree(
         filepath = resource["url"]
         remote = True
 
+    # Check size limit before processing
+    archive_size = resource.get("size")
+    if archive_size and isinstance(archive_size, str):
+        try:
+            archive_size = int(archive_size)
+        except (ValueError, TypeError):
+            archive_size = None
+            
+    max_size = unf_config.get_max_size_config()
+    if not unf_truncate.check_size_limit(archive_size, max_size):
+        log.warning(
+            f"Skipping archive processing: size {printable_file_size(archive_size) if archive_size else 'unknown'} "
+            f"exceeds maximum allowed size of {printable_file_size(max_size)} for resource {resource.get('id', 'unknown')}"
+        )
+        return []
+
     if tree := get_archive_structure(resource["id"]):
-        return tree
+        # Apply truncation to cached tree
+        return _apply_truncation_limits(tree)
 
     adapter = get_adapter_for_format(resource["format"].lower())
     tree = adapter(filepath, resource_view, remote=remote)
-    save_archive_structure(tree, resource["id"])
+    
+    # Apply truncation limits before saving
+    truncated_tree = _apply_truncation_limits(tree)
+    save_archive_structure(truncated_tree, resource["id"])
 
-    return tree
+    return truncated_tree
+
+
+def _apply_truncation_limits(tree: list[unf_types.Node]) -> list[unf_types.Node]:
+    """Apply all truncation limits to the tree."""
+    max_depth = unf_config.get_max_depth_config()
+    max_nested_count = unf_config.get_max_nested_count_config() 
+    max_count = unf_config.get_max_count_config()
+    
+    return unf_truncate.apply_all_truncations(
+        tree, 
+        max_depth=max_depth,
+        max_nested_count=max_nested_count, 
+        max_count=max_count
+    )
 
 
 def get_adapter_for_format(res_format: str) -> Callable[..., list[unf_types.Node]]:
