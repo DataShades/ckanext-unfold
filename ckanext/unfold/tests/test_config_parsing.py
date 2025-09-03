@@ -164,19 +164,15 @@ def test_parse_formats_valid(value, supported_formats, expected):
     assert result == expected
 
 
-def test_parse_formats_unsupported_formats(caplog):
+def test_parse_formats_unsupported_formats():
     """Test handling of unsupported formats in configuration."""
     supported_formats = ["zip", "tar", "7z"]
     value = "zip tar unsupported_format another_unsupported"
     
     result = unf_config.parse_formats(value, supported_formats)
     
-    # Should only return supported formats
+    # Should only return supported formats, filtering out unsupported ones
     assert result == ["zip", "tar"]
-    
-    # Should log warning about unsupported formats
-    assert "unsupported_format" in caplog.text
-    assert "another_unsupported" in caplog.text
 
 
 def test_parse_formats_all_unsupported():

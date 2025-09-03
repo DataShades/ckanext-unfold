@@ -78,11 +78,21 @@ def apply_all_truncations(
         
         # Check depth limit
         if has_depth_limit and depth > max_depth:
+            # Calculate parent depth properly
+            if node.parent == "#":
+                parent_depth = 0
+            elif node.parent in depths:
+                parent_depth = depths[node.parent]
+            else:
+                # Calculate parent depth from path structure
+                parent_depth = len([p for p in node.parent.split("/") if p]) - 1
+            
             # Only add truncation indicator for the immediate parent of the truncated node
             # if that parent is at max_depth and hasn't already been truncated
-            parent_depth = depths.get(node.parent, 0)
             if parent_depth == max_depth and node.parent not in depth_truncated_parents:
-                result.append(create_truncation_node(node.parent, 1))
+                # Determine the type of the truncated node for proper icon
+                node_type = "folder" if node.data and node.data.get("type") == "folder" else "file"
+                result.append(create_truncation_node(node.parent, 1, node_type))
                 depth_truncated_parents.add(node.parent)
                 log.debug(f"Depth truncation at depth {depth} under parent '{node.parent}' (parent depth: {parent_depth})")
             continue
@@ -102,7 +112,13 @@ def apply_all_truncations(
             # Add global truncation indicator showing remaining items
             remaining = len(nodes) - i
             if remaining > 0:
-                result.append(create_truncation_node("#", remaining))
+                # Determine the most common type in remaining items for icon
+                remaining_nodes = nodes[i:]
+                file_count = sum(1 for n in remaining_nodes if n.data and n.data.get("type") == "file")
+                folder_count = remaining - file_count
+                # Use folder icon if more folders, or if equal counts (folders typically more important)
+                node_type = "folder" if folder_count >= file_count else "file"
+                result.append(create_truncation_node("#", remaining, node_type))
                 log.debug(f"Total count truncation: {remaining} items truncated (limit: {max_count})")
             break
         
