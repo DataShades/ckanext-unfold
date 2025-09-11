@@ -19,6 +19,7 @@ class UnfoldPlugin(plugins.SingletonPlugin):
     plugins.implements(plugins.IConfigurer)
     plugins.implements(plugins.IResourceView, inherit=True)
     plugins.implements(plugins.IResourceController, inherit=True)
+    plugins.implements(plugins.IConfigDeclaration)
 
     # IConfigDeclaration
     def declare_config_options(self, declaration, key):
