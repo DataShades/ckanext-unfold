@@ -20,8 +20,25 @@ class UnfoldPlugin(plugins.SingletonPlugin):
     plugins.implements(plugins.IResourceView, inherit=True)
     plugins.implements(plugins.IResourceController, inherit=True)
 
-    # IConfigurer
+    # IConfigDeclaration
+    def declare_config_options(self, declaration, key):
+        declaration.declare(key.ckanext.unfold.max_size, "50MB").set_description(
+            "Maximum size of archives to process (e.g., 50MB, 1GB)"
+        )
+        declaration.declare(key.ckanext.unfold.max_depth, 4).set_description(
+            "Maximum depth of archive structure to display"
+        )
+        declaration.declare(key.ckanext.unfold.max_nested_count, 20).set_description(
+            "Maximum number of items to show per folder"
+        )
+        declaration.declare(key.ckanext.unfold.max_count, 100).set_description(
+            "Maximum total number of items to display from archive"
+        )
+        declaration.declare(key.ckanext.unfold.formats, "zip tar 7z rar").set_description(
+            "Supported archive formats (space-separated list)"
+        )
 
+    # IConfigurer
     def update_config(self, config_: CKANConfig):
         tk.add_template_directory(config_, "templates")
         tk.add_public_directory(config_, "public")
