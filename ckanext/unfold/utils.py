@@ -160,8 +160,8 @@ def get_archive_tree(
         return []
 
     if tree := get_archive_structure(resource["id"]):
-        # Apply truncation to cached tree
-        return _apply_truncation_limits(tree)
+        # Return cached tree directly - it was already truncated when first processed
+        return tree
 
     adapter = get_adapter_for_format(resource["format"].lower())
     tree = adapter(filepath, resource_view, remote=remote)
