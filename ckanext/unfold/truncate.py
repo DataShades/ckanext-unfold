@@ -56,112 +56,125 @@ def sort_nodes(nodes: list[unf_types.Node]) -> list[unf_types.Node]:
 
     return sorted(nodes, key=key)
 
+from collections import defaultdict
+from typing import Optional
+
+# Assumes: sort_nodes, create_truncation_node, unf_types, log
+
+
+def _node_type(node) -> str:
+    return "folder" if (getattr(node, "data", None) and node.data.get("type") == "folder") else "file"
+
+
+def _compute_depth(node, depths: dict[str, int]) -> int:
+    if node.parent == "#":
+        d = 0
+    elif node.parent in depths:
+        d = depths[node.parent] + 1
+    else:
+        d = node.id.strip("/").count("/")
+    depths[node.id] = d
+    return d
+
+
+def _has_hidden_ancestor(node_id: str, parent_id: str, hidden_prefixes: set[str]) -> bool:
+    if node_id in hidden_prefixes:
+        return True
+    pid = parent_id
+    while pid and pid != "#":
+        if pid in hidden_prefixes:
+            return True
+        pid = pid.rsplit("/", 1)[0] if "/" in pid else "#"
+    return False
+
+
+def _add_trunc_marker_once(result, trunc_added, parent_id: str, ntype: str, remaining: int = 0):
+    if ntype not in trunc_added[parent_id]:
+        result.append(create_truncation_node(parent_id, remaining, ntype))
+        trunc_added[parent_id].add(ntype)
 
 def apply_all_truncations(
-    nodes: list[unf_types.Node],
+    nodes: list["unf_types.Node"],
     max_depth: Optional[int] = None,
     max_nested_count: Optional[int] = None,
     max_count: Optional[int] = None,
-) -> list[unf_types.Node]:
+) -> list["unf_types.Node"]:
 
     if not nodes:
         return []
 
-    # Check if any limits are actually set (ignore None and negative values)
     has_depth_limit = max_depth is not None and max_depth >= 0
     has_nested_limit = max_nested_count is not None and max_nested_count > 0
     has_count_limit = max_count is not None and max_count > 0
 
-    if not has_depth_limit and not has_nested_limit and not has_count_limit:
+    if not (has_depth_limit or has_nested_limit or has_count_limit):
         return list(nodes)
 
-    result = []
-    depths = {}  # node_id -> depth
-    parent_child_counts = defaultdict(int)  # parent_id -> count of children added
-    depth_truncated_parents = set()  # parents that have depth truncation indicators
-    nested_truncated_parents = (
-        set()
-    )  # parents that have nested count truncation indicators
+    result: list["unf_types.Node"] = []
+    real_count = 0  # count only real nodes (not placeholders)
+    depths: dict[str, int] = {}
 
-    # Single pass through the ordered node list
-    for i, node in enumerate(sort_nodes(nodes)):
-        # Calculate depth on the fly
-        if node.parent == "#":
-            depth = 0
-        elif node.parent in depths:
-            depth = depths[node.parent] + 1
-        else:
-            # Fallback: calculate from path structure
-            depth = len([p for p in node.id.split("/") if p]) - 1
+    parent_file_counts: defaultdict[str, int] = defaultdict(int)
+    parent_folder_counts: defaultdict[str, int] = defaultdict(int)
 
-        depths[node.id] = depth
+    trunc_marker_added: dict[str, set[str]] = defaultdict(set)
+    hidden_prefixes: set[str] = set()
 
-        # Check depth limit
+    ordered = sort_nodes(nodes)
+
+    for i, node in enumerate(ordered):
+        # Skip if hidden by an ancestor
+        if _has_hidden_ancestor(node.id, node.parent, hidden_prefixes):
+            continue
+
+        depth = _compute_depth(node, depths)
+
+        # Depth truncation
         if has_depth_limit and depth > max_depth:
-            # Calculate parent depth properly
-            if node.parent == "#":
-                parent_depth = 0
-            elif node.parent in depths:
-                parent_depth = depths[node.parent]
+            ntype = _node_type(node)
+            _add_trunc_marker_once(result, trunc_marker_added, node.parent, ntype)
+            log.debug(f"Depth truncation at depth {depth} under parent '{node.parent}' (max_depth: {max_depth})")
+            hidden_prefixes.add(node.id)  # hide subtree
+            continue
+
+        # Nested count truncation (files and folders counted separately)
+        if has_nested_limit:
+            ntype = _node_type(node)
+            if ntype == "folder":
+                if parent_folder_counts[node.parent] >= max_nested_count:
+                    _add_trunc_marker_once(result, trunc_marker_added, node.parent, "folder")
+                    log.debug(f"Nested FOLDER count truncation under '{node.parent}' (limit: {max_nested_count})")
+                    hidden_prefixes.add(node.id)  # hide subtree
+                    continue
             else:
-                # Calculate parent depth from path structure
-                parent_depth = len([p for p in node.parent.split("/") if p]) - 1
+                if parent_file_counts[node.parent] >= max_nested_count:
+                    _add_trunc_marker_once(result, trunc_marker_added, node.parent, "file")
+                    log.debug(f"Nested FILE count truncation under '{node.parent}' (limit: {max_nested_count})")
+                    continue  # files have no subtree
 
-            # Only add truncation indicator for the immediate parent of the truncated node
-            # if that parent is at max_depth and hasn't already been truncated
-            if parent_depth == max_depth and node.parent not in depth_truncated_parents:
-                # Determine the type of the truncated node for proper icon
-                node_type = (
-                    "folder"
-                    if node.data and node.data.get("type") == "folder"
-                    else "file"
-                )
-                result.append(create_truncation_node(node.parent, 1, node_type))
-                depth_truncated_parents.add(node.parent)
-                log.debug(
-                    f"Depth truncation at depth {depth} under parent '{node.parent}' (parent depth: {parent_depth})"
-                )
-            continue
-
-        # Check nested count limit
-        if has_nested_limit and parent_child_counts[node.parent] >= max_nested_count:
-            # Add truncation indicator for this parent if not already added
-            if node.parent not in nested_truncated_parents:
-                node_type = (
-                    "folder"
-                    if node.data and node.data.get("type") == "folder"
-                    else "file"
-                )
-                result.append(create_truncation_node(node.parent, 1, node_type))
-                nested_truncated_parents.add(node.parent)
-                log.debug(
-                    f"Nested count truncation under parent '{node.parent}' (limit: {max_nested_count})"
-                )
-            continue
-
-        # Check total count limit - stop early if reached
-        if has_count_limit and len(result) >= max_count - 1:
-            # Add global truncation indicator showing remaining items
-            remaining = len(nodes) - i
+        # Total count truncation (only counts real nodes)
+        if has_count_limit and real_count >= max_count - 1:
+            # Count remaining *visible* nodes
+            remaining_nodes = [
+                n for n in ordered[i:] if not _has_hidden_ancestor(n.id, n.parent, hidden_prefixes)
+            ]
+            remaining = len(remaining_nodes)
             if remaining > 0:
-                # Determine the most common type in remaining items for icon
-                remaining_nodes = nodes[i:]
-                file_count = sum(
-                    1
-                    for n in remaining_nodes
-                    if n.data and n.data.get("type") == "file"
-                )
+                file_count = sum(1 for n in remaining_nodes if _node_type(n) == "file")
                 folder_count = remaining - file_count
-                # Use folder icon if more folders, or if equal counts (folders typically more important)
-                node_type = "folder" if folder_count >= file_count else "file"
-                result.append(create_truncation_node("#", remaining, node_type))
-                log.debug(
-                    f"Total count truncation: {remaining} items truncated (limit: {max_count})"
-                )
+                ntype = "folder" if folder_count >= file_count else "file"
+                result.append(create_truncation_node("#", remaining, ntype))
+                log.debug(f"Total count truncation: {remaining} items truncated (limit: {max_count})")
             break
 
-        # Node passes all checks - add it
+        # Accept node + bump counters
         result.append(node)
-        parent_child_counts[node.parent] += 1
+        real_count += 1
+        if _node_type(node) == "folder":
+            parent_folder_counts[node.parent] += 1
+        else:
+            parent_file_counts[node.parent] += 1
 
     return result
+
+
