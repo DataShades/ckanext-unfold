@@ -14,7 +14,7 @@ def create_truncation_node(
 ) -> unf_types.Node:
     return unf_types.Node(
         id=f"{parent_id}/__truncated__",
-        text=" truncated" if not truncated_count else f" ({truncated_count} more items truncated)",
+        text=" truncated" if not truncated_count else f"~{truncated_count} more items truncated",
         icon="fa fa-ellipsis-h",
         parent=parent_id,
         state={"opened": False},
@@ -80,7 +80,8 @@ def _has_hidden_ancestor(node_id: str, parent_id: str, hidden_prefixes: set[str]
 
 
 def _add_trunc_marker_once(result, parent_id: str, remaining: int = 0):
-    if parent_id == "#" or "/__truncated__" not in result[-1].id:
+    _len = len(result)
+    if parent_id == "#" or  _len > 0 and "/__truncated__" not in result[-1].id or _len == 0:
         result.append(create_truncation_node(parent_id, remaining))
 
 def apply_all_truncations(
@@ -149,12 +150,10 @@ def apply_all_truncations(
             if remaining > 0:
                 file_count = sum(1 for n in remaining_nodes if _node_type(n) == "file")
                 folder_count = remaining - file_count
-                ntype = "folder" if folder_count >= file_count else "file"
                 result.append(create_truncation_node("#", remaining))
                 log.debug(f"Total count truncation: {remaining} items truncated (limit: {max_count})")
             break
-
-        # Accept node + bump counters
+        
         result.append(node)
         real_count += 1
         if _node_type(node) == "folder":
