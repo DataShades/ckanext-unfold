@@ -106,6 +106,3 @@ def test_build_tree_with_total_count_limits(max_count, expected_truncated):
     assert has_truncation == expected_truncated
 
     assert type(truncated_tree[0]) == unf_types.Node
-
-
-

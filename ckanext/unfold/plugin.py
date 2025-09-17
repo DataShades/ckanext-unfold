@@ -35,9 +35,9 @@ class UnfoldPlugin(plugins.SingletonPlugin):
         declaration.declare(key.ckanext.unfold.max_count, 100).set_description(
             "Maximum total number of items to display from archive"
         )
-        declaration.declare(key.ckanext.unfold.formats, "zip tar 7z rar").set_description(
-            "Supported archive formats (space-separated list)"
-        )
+        declaration.declare(
+            key.ckanext.unfold.formats, "zip tar 7z rar"
+        ).set_description("Supported archive formats (space-separated list)")
 
     # IConfigurer
     def update_config(self, config_: CKANConfig):

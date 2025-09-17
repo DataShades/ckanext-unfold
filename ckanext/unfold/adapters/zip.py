@@ -4,7 +4,7 @@ import logging
 from datetime import datetime as dt
 from io import BytesIO
 from typing import Any, Optional
-from zipfile import BadZipFile, LargeZipFile, ZipFile, ZipInfo, ZIP_STORED
+from zipfile import ZIP_STORED, BadZipFile, LargeZipFile, ZipFile, ZipInfo
 
 import requests
 
@@ -37,7 +37,7 @@ def ensure_dir_entries(file_list):
         # climb parents using rfind (faster than split chains)
         i = s.rfind("/")
         while i != -1:
-            d = s[:i+1]  # keep trailing slash to mark as dir
+            d = s[: i + 1]  # keep trailing slash to mark as dir
             if d not in name_set:
                 inferred_dirs.add(d)
             i = s.rfind("/", 0, i)
@@ -47,7 +47,7 @@ def ensure_dir_entries(file_list):
         for d in inferred_dirs:
             zi = ZipInfo(d)
             # Mark as a directory: set Unix mode drwxr-xr-x
-            zi.external_attr = (0o40755 << 16)
+            zi.external_attr = 0o40755 << 16
             zi.compress_type = ZIP_STORED
             zi.file_size = 0
             file_list.append(zi)
@@ -104,9 +104,11 @@ def _prepare_table_data(entry: ZipInfo) -> dict[str, Any]:
     )
 
     return {
-        "size": unf_utils.printable_file_size(entry.compress_size)
-        if entry.compress_size
-        else "",
+        "size": (
+            unf_utils.printable_file_size(entry.compress_size)
+            if entry.compress_size
+            else ""
+        ),
         "type": "folder" if entry.is_dir() else "file",
         "format": fmt,
         "modified_at": modified_at or "--",

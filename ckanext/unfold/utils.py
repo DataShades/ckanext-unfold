@@ -150,7 +150,7 @@ def get_archive_tree(
             archive_size = int(archive_size)
         except (ValueError, TypeError):
             archive_size = None
-            
+
     max_size = unf_config.get_max_size_config()
     if not unf_truncate.check_size_limit(archive_size, max_size):
         log.warning(
@@ -165,7 +165,7 @@ def get_archive_tree(
 
     adapter = get_adapter_for_format(resource["format"].lower())
     tree = adapter(filepath, resource_view, remote=remote)
-    
+
     # Apply truncation limits before saving
     truncated_tree = _apply_truncation_limits(tree)
     save_archive_structure(truncated_tree, resource["id"])
@@ -175,14 +175,14 @@ def get_archive_tree(
 
 def _apply_truncation_limits(tree: list[unf_types.Node]) -> list[unf_types.Node]:
     max_depth = unf_config.get_max_depth_config()
-    max_nested_count = unf_config.get_max_nested_count_config() 
+    max_nested_count = unf_config.get_max_nested_count_config()
     max_count = unf_config.get_max_count_config()
-    
+
     return unf_truncate.apply_all_truncations(
-        tree, 
+        tree,
         max_depth=max_depth,
-        max_nested_count=max_nested_count, 
-        max_count=max_count
+        max_nested_count=max_nested_count,
+        max_count=max_count,
     )
 
 

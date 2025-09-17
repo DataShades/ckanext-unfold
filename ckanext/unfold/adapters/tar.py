@@ -30,7 +30,7 @@ def build_directory_tree(
         if remote:
             file_list = get_tarlist_from_url(filepath)
         else:
-            with tarfile.open(filepath, mode) as archive: # type: ignore
+            with tarfile.open(filepath, mode) as archive:  # type: ignore
                 # TODO: tarfile library doesn't have built-in support
                 # for checking whether a TAR file is protected with a password
                 # investigate it if someone will have such a problem lately

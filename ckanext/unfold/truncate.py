@@ -7,12 +7,14 @@ import ckanext.unfold.types as unf_types
 import ckanext.unfold.utils as unf_utils
 
 
-def create_truncation_node(
-    parent_id: str, truncated_count: int
-) -> unf_types.Node:
+def create_truncation_node(parent_id: str, truncated_count: int) -> unf_types.Node:
     return unf_types.Node(
         id=f"{parent_id}/__truncated__",
-        text=" truncated" if not truncated_count else f"~{truncated_count} more items truncated",
+        text=(
+            " truncated"
+            if not truncated_count
+            else f"~{truncated_count} more items truncated"
+        ),
         icon="fa fa-ellipsis-h",
         parent=parent_id,
         state={"opened": False},
@@ -46,8 +48,13 @@ def sort_nodes(nodes: list[unf_types.Node]) -> list[unf_types.Node]:
 
     return sorted(nodes, key=key)
 
+
 def _node_type(node) -> str:
-    return "folder" if (getattr(node, "data", None) and node.data.get("type") == "folder") else "file"
+    return (
+        "folder"
+        if (getattr(node, "data", None) and node.data.get("type") == "folder")
+        else "file"
+    )
 
 
 def _compute_depth(node, depths: dict[str, int]) -> int:
@@ -61,7 +68,9 @@ def _compute_depth(node, depths: dict[str, int]) -> int:
     return d
 
 
-def _has_hidden_ancestor(node_id: str, parent_id: str, hidden_prefixes: set[str]) -> bool:
+def _has_hidden_ancestor(
+    node_id: str, parent_id: str, hidden_prefixes: set[str]
+) -> bool:
     if node_id in hidden_prefixes:
         return True
     pid = parent_id
@@ -74,8 +83,14 @@ def _has_hidden_ancestor(node_id: str, parent_id: str, hidden_prefixes: set[str]
 
 def _add_trunc_marker_once(result, parent_id: str, remaining: int = 0):
     _len = len(result)
-    if parent_id == "#" or  _len > 0 and "/__truncated__" not in result[-1].id or _len == 0:
+    if (
+        parent_id == "#"
+        or _len > 0
+        and "/__truncated__" not in result[-1].id
+        or _len == 0
+    ):
         result.append(create_truncation_node(parent_id, remaining))
+
 
 def apply_all_truncations(
     nodes: list["unf_types.Node"],
@@ -133,17 +148,19 @@ def apply_all_truncations(
         # Total count truncation (only counts real nodes)
         if has_count_limit and real_count >= max_count - 1:
             remaining_nodes = [
-                n for n in ordered[i:] if not _has_hidden_ancestor(n.id, n.parent, hidden_prefixes)
+                n
+                for n in ordered[i:]
+                if not _has_hidden_ancestor(n.id, n.parent, hidden_prefixes)
             ]
             remaining = len(remaining_nodes)
             if remaining > 0:
                 # If the previous node is a folder a trunction node for that folder will be added.
-                if _node_type(ordered[i-1]) == "folder":
+                if _node_type(ordered[i - 1]) == "folder":
                     _add_trunc_marker_once(result, ordered[i].parent, 0)
                 # add max count truncation node
                 _add_trunc_marker_once(result, "#", remaining)
             break
- 
+
         result.append(node)
         real_count += 1
         if _node_type(node) == "folder":

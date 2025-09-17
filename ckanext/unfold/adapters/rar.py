@@ -73,9 +73,11 @@ def _prepare_table_data(entry: RarInfo) -> dict[str, Any]:
     fmt = "" if entry.isdir() else unf_utils.get_format_from_name(name)
 
     return {
-        "size": unf_utils.printable_file_size(entry.compress_size)
-        if entry.compress_size
-        else "--",
+        "size": (
+            unf_utils.printable_file_size(entry.compress_size)
+            if entry.compress_size
+            else "--"
+        ),
         "type": "folder" if entry.isdir() else "file",
         "format": fmt,
         "modified_at": _fetch_mtime(entry),
