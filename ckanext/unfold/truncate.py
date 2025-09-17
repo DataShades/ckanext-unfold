@@ -142,18 +142,21 @@ def apply_all_truncations(
 
         # Total count truncation (only counts real nodes)
         if has_count_limit and real_count >= max_count - 1:
-            # Count remaining *visible* nodes
             remaining_nodes = [
                 n for n in ordered[i:] if not _has_hidden_ancestor(n.id, n.parent, hidden_prefixes)
             ]
             remaining = len(remaining_nodes)
             if remaining > 0:
-                file_count = sum(1 for n in remaining_nodes if _node_type(n) == "file")
-                folder_count = remaining - file_count
-                result.append(create_truncation_node("#", remaining))
+                # If the previous node is a folder a trunction node for that folder will be added.
+                if _node_type(ordered[i-1]) == "folder":
+                    _add_trunc_marker_once(result, ordered[i].parent, 0)
+            
+                # add max count truncation node
+                _add_trunc_marker_once(result, "#", remaining)
+
                 log.debug(f"Total count truncation: {remaining} items truncated (limit: {max_count})")
             break
-        
+ 
         result.append(node)
         real_count += 1
         if _node_type(node) == "folder":
