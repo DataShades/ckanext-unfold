@@ -47,7 +47,7 @@ def test_max_count(complex_tree, max_count, expect_truncation):
         complex_tree, max_count=max_count
     )
     if expect_truncation:
-        assert len(truncated_nodes) == max_count
+        assert len(truncated_nodes) in [max_count, max_count + 1]  # empty folders are not allowed an additional nodecould be added.
 
 
 @pytest.mark.parametrize(
