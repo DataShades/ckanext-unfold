@@ -9,14 +9,13 @@ import ckanext.unfold.utils as unf_utils
 
 log = logging.getLogger(__name__)
 
-
 def create_truncation_node(
-    parent_id: str, truncated_count: int, node_type: str = "folder"
+    parent_id: str, truncated_count: int
 ) -> unf_types.Node:
     return unf_types.Node(
         id=f"{parent_id}/__truncated__",
-        text=f"... ({truncated_count} more items truncated)",
-        icon="fa fa-folder" if node_type == "folder" else "fa fa-file",
+        text="... truncated" if not truncated_count else f"... ({truncated_count} more items truncated)",
+        icon="fa fa-ellipsis-h",
         parent=parent_id,
         state={"opened": False},
         data={
@@ -24,8 +23,6 @@ def create_truncation_node(
             "type": "truncation",
             "format": "",
             "modified_at": "--",
-            "truncated_count": truncated_count,
-            "truncated_type": node_type,
         },
     )
 
@@ -56,12 +53,6 @@ def sort_nodes(nodes: list[unf_types.Node]) -> list[unf_types.Node]:
 
     return sorted(nodes, key=key)
 
-from collections import defaultdict
-from typing import Optional
-
-# Assumes: sort_nodes, create_truncation_node, unf_types, log
-
-
 def _node_type(node) -> str:
     return "folder" if (getattr(node, "data", None) and node.data.get("type") == "folder") else "file"
 
@@ -88,10 +79,9 @@ def _has_hidden_ancestor(node_id: str, parent_id: str, hidden_prefixes: set[str]
     return False
 
 
-def _add_trunc_marker_once(result, trunc_added, parent_id: str, ntype: str, remaining: int = 0):
-    if ntype not in trunc_added[parent_id]:
-        result.append(create_truncation_node(parent_id, remaining, ntype))
-        trunc_added[parent_id].add(ntype)
+def _add_trunc_marker_once(result, parent_id: str, remaining: int = 0):
+    if f"{parent_id}/__truncated__" != result[-1].id:
+        result.append(create_truncation_node(parent_id, remaining))
 
 def apply_all_truncations(
     nodes: list["unf_types.Node"],
@@ -116,8 +106,6 @@ def apply_all_truncations(
 
     parent_file_counts: defaultdict[str, int] = defaultdict(int)
     parent_folder_counts: defaultdict[str, int] = defaultdict(int)
-
-    trunc_marker_added: dict[str, set[str]] = defaultdict(set)
     hidden_prefixes: set[str] = set()
 
     ordered = sort_nodes(nodes)
@@ -131,8 +119,7 @@ def apply_all_truncations(
 
         # Depth truncation
         if has_depth_limit and depth > max_depth:
-            ntype = _node_type(node)
-            _add_trunc_marker_once(result, trunc_marker_added, node.parent, ntype)
+            _add_trunc_marker_once(result, node.parent)
             log.debug(f"Depth truncation at depth {depth} under parent '{node.parent}' (max_depth: {max_depth})")
             hidden_prefixes.add(node.id)  # hide subtree
             continue
@@ -142,13 +129,13 @@ def apply_all_truncations(
             ntype = _node_type(node)
             if ntype == "folder":
                 if parent_folder_counts[node.parent] >= max_nested_count:
-                    _add_trunc_marker_once(result, trunc_marker_added, node.parent, "folder")
+                    _add_trunc_marker_once(result, node.parent)
                     log.debug(f"Nested FOLDER count truncation under '{node.parent}' (limit: {max_nested_count})")
                     hidden_prefixes.add(node.id)  # hide subtree
                     continue
             else:
                 if parent_file_counts[node.parent] >= max_nested_count:
-                    _add_trunc_marker_once(result, trunc_marker_added, node.parent, "file")
+                    _add_trunc_marker_once(result, node.parent)
                     log.debug(f"Nested FILE count truncation under '{node.parent}' (limit: {max_nested_count})")
                     continue  # files have no subtree
 
@@ -163,7 +150,7 @@ def apply_all_truncations(
                 file_count = sum(1 for n in remaining_nodes if _node_type(n) == "file")
                 folder_count = remaining - file_count
                 ntype = "folder" if folder_count >= file_count else "file"
-                result.append(create_truncation_node("#", remaining, ntype))
+                result.append(create_truncation_node("#", remaining))
                 log.debug(f"Total count truncation: {remaining} items truncated (limit: {max_count})")
             break
 
@@ -176,5 +163,3 @@ def apply_all_truncations(
             parent_file_counts[node.parent] += 1
 
     return result
-
-

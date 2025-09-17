@@ -88,3 +88,22 @@ def test_max_nested_count(complex_tree, max_nested_count, expect_truncation):
         filtered = [n.id for n in truncated_nodes]
         assert any(["__truncated__" in _id for _id in filtered])
 
+
+@pytest.mark.parametrize(
+    "max_count, max_nested_count, max_depth, expect_truncation, expect_truncation_at_end",
+    [
+        (10, 5, 2, True, True),
+        (15, 5, 2, True, True),
+        (20, 5, 2, True, False)
+    ],
+)
+def test_mixed(complex_tree, max_count, max_nested_count, max_depth, expect_truncation,expect_truncation_at_end):
+    before = deepcopy(complex_tree)
+    random.shuffle(complex_tree)
+    truncated_nodes = unf_truncate.apply_all_truncations(complex_tree,max_count=max_count, max_nested_count=max_nested_count, max_depth=max_depth)
+
+    if expect_truncation:
+        filtered = [n.id for n in truncated_nodes]
+        assert any(["__truncated__" in _id for _id in filtered])
+    if expect_truncation_at_end:
+        assert "__truncated__" in filtered[-1]
