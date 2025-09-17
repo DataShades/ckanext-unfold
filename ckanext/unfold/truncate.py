@@ -80,7 +80,7 @@ def _has_hidden_ancestor(node_id: str, parent_id: str, hidden_prefixes: set[str]
 
 
 def _add_trunc_marker_once(result, parent_id: str, remaining: int = 0):
-    if f"{parent_id}/__truncated__" != result[-1].id:
+    if parent_id == "#" or "/__truncated__" not in result[-1].id:
         result.append(create_truncation_node(parent_id, remaining))
 
 def apply_all_truncations(
