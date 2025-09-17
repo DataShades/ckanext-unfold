@@ -91,7 +91,7 @@ def _build_node(entry: ZipInfo) -> unf_types.Node:
         text=unf_utils.name_from_path(entry.filename),
         icon="fa fa-folder" if entry.is_dir() else unf_utils.get_icon_by_format(fmt),
         state={"opened": True},
-        parent="/".join(parts[:-1]) + "/" if parts[:-1] else "#",
+        parent="/".join(parts[:-1]) if parts[:-1] else "#",
         data=_prepare_table_data(entry),
     )
 
