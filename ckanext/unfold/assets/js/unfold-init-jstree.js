@@ -66,7 +66,7 @@ ckan.module("unfold-init-jstree", function ($, _) {
                     height: 700,
                 },
                 plugins: [
-                    "search", "table", "sort"
+                    "search", "table"
                 ]
             });
         }
