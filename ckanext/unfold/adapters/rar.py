@@ -59,7 +59,7 @@ def _build_node(entry: RarInfo) -> unf_types.Node:
     fmt = "" if entry.isdir() else unf_utils.get_format_from_name(name)
 
     return unf_types.Node(
-        id=entry.filename or "",
+        id=entry.filename.rstrip("/") or "",
         text=unf_utils.name_from_path(entry.filename),
         icon="fa fa-folder" if entry.isdir() else unf_utils.get_icon_by_format(fmt),
         state={"opened": True},
