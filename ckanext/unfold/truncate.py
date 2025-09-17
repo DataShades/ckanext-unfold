@@ -1,13 +1,11 @@
 from __future__ import annotations
 
-import logging
 from collections import defaultdict
 from typing import Optional
 
 import ckanext.unfold.types as unf_types
 import ckanext.unfold.utils as unf_utils
 
-log = logging.getLogger(__name__)
 
 def create_truncation_node(
     parent_id: str, truncated_count: int
@@ -30,13 +28,8 @@ def create_truncation_node(
 def check_size_limit(archive_size: Optional[int], max_size: Optional[int]) -> bool:
     if max_size is None or archive_size is None:
         return True
-
     if archive_size > max_size:
-        log.debug(
-            f"Size limit exceeded: {unf_utils.printable_file_size(archive_size)} > {unf_utils.printable_file_size(max_size)}"
-        )
         return False
-
     return True
 
 
@@ -121,7 +114,6 @@ def apply_all_truncations(
         # Depth truncation
         if has_depth_limit and depth > max_depth:
             _add_trunc_marker_once(result, node.parent)
-            log.debug(f"Depth truncation at depth {depth} under parent '{node.parent}' (max_depth: {max_depth})")
             hidden_prefixes.add(node.id)  # hide subtree
             continue
 
@@ -131,13 +123,11 @@ def apply_all_truncations(
             if ntype == "folder":
                 if parent_folder_counts[node.parent] >= max_nested_count:
                     _add_trunc_marker_once(result, node.parent)
-                    log.debug(f"Nested FOLDER count truncation under '{node.parent}' (limit: {max_nested_count})")
                     hidden_prefixes.add(node.id)  # hide subtree
                     continue
             else:
                 if parent_file_counts[node.parent] >= max_nested_count:
                     _add_trunc_marker_once(result, node.parent)
-                    log.debug(f"Nested FILE count truncation under '{node.parent}' (limit: {max_nested_count})")
                     continue  # files have no subtree
 
         # Total count truncation (only counts real nodes)
@@ -150,11 +140,8 @@ def apply_all_truncations(
                 # If the previous node is a folder a trunction node for that folder will be added.
                 if _node_type(ordered[i-1]) == "folder":
                     _add_trunc_marker_once(result, ordered[i].parent, 0)
-            
                 # add max count truncation node
                 _add_trunc_marker_once(result, "#", remaining)
-
-                log.debug(f"Total count truncation: {remaining} items truncated (limit: {max_count})")
             break
  
         result.append(node)

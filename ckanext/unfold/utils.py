@@ -174,7 +174,6 @@ def get_archive_tree(
 
 
 def _apply_truncation_limits(tree: list[unf_types.Node]) -> list[unf_types.Node]:
-    """Apply all truncation limits to the tree."""
     max_depth = unf_config.get_max_depth_config()
     max_nested_count = unf_config.get_max_nested_count_config() 
     max_count = unf_config.get_max_count_config()
