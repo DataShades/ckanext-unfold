@@ -14,7 +14,7 @@ def create_truncation_node(
 ) -> unf_types.Node:
     return unf_types.Node(
         id=f"{parent_id}/__truncated__",
-        text="... truncated" if not truncated_count else f"... ({truncated_count} more items truncated)",
+        text=" truncated" if not truncated_count else f" ({truncated_count} more items truncated)",
         icon="fa fa-ellipsis-h",
         parent=parent_id,
         state={"opened": False},
