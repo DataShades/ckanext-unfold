@@ -10,31 +10,6 @@ import ckanext.unfold.exception as unf_exception
 log = logging.getLogger(__name__)
 
 
-def parse_size_config(size_str: Optional[str]) -> Optional[int]:
-    if not size_str or not size_str.strip():
-        return None  # Default: no limit
-
-    size_str = size_str.strip().upper()
-
-    # Match pattern like '50MB', '1.5GB', etc.
-    match = re.match(r"^(\d+(?:\.\d+)?)\s*(B|KB|MB|GB)$", size_str)
-    if not match:
-        raise unf_exception.UnfoldError(
-            f"Invalid size format: '{size_str}'. Expected format: <number><unit> "
-            f"where unit is B, KB, MB, or GB (e.g., '50MB', '1GB')"
-        )
-
-    value, unit = match.groups()
-    try:
-        value = float(value)
-    except ValueError:
-        raise unf_exception.UnfoldError(f"Invalid numeric value in size: '{size_str}'")
-
-    multipliers = {"B": 1, "KB": 1024, "MB": 1024**2, "GB": 1024**3}
-
-    return int(value * multipliers[unit])
-
-
 def parse_max_depth(value: Optional[str]) -> Optional[int]:
     if not value:
         return None  # Default: no limit
@@ -99,7 +74,7 @@ def get_max_count_config() -> Optional[int]:
 
 def get_max_size_config() -> Optional[int]:
     value = tk.config.get("ckanext.unfold.max_size")
-    return parse_size_config(value)
+    return value
 
 
 def parse_formats(value: Optional[str], supported_formats: list[str]) -> list[str]:

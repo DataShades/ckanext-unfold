@@ -7,59 +7,6 @@ import ckanext.unfold.exception as unf_exception
 
 
 @pytest.mark.parametrize(
-    "size_str,expected",
-    [
-        # Valid sizes
-        ("50MB", 50 * 1024**2),
-        ("1GB", 1024**3),
-        ("500KB", 500 * 1024),
-        ("1024B", 1024),
-        ("2.5GB", int(2.5 * 1024**3)),
-        ("10.5MB", int(10.5 * 1024**2)),
-        # Case insensitive
-        ("50mb", 50 * 1024**2),
-        ("1gb", 1024**3),
-        ("500Kb", 500 * 1024),
-        ("1024b", 1024),
-        # With whitespace
-        ("  50MB  ", 50 * 1024**2),
-        ("1 GB", 1024**3),
-        ("500 KB", 500 * 1024),
-        # None/empty cases
-        (None, None),
-        ("", None),
-        ("   ", None),
-    ],
-)
-def test_parse_size_config_valid(size_str, expected):
-    """Test parsing valid size configurations."""
-    result = unf_config.parse_size_config(size_str)
-    assert result == expected
-
-
-@pytest.mark.parametrize(
-    "size_str,error_msg",
-    [
-        # Invalid formats
-        ("50", "Invalid size format"),
-        ("MB50", "Invalid size format"),
-        ("50TB", "Invalid size format"),  # Unsupported unit
-        ("50XB", "Invalid size format"),  # Invalid unit
-        ("invalid", "Invalid size format"),
-        ("50 50 MB", "Invalid size format"),
-        # Invalid numbers
-        ("abc MB", "Invalid size format"),
-        ("-50MB", "Invalid size format"),  # Negative not allowed by regex
-        ("50.5.5MB", "Invalid size format"),  # Multiple decimals
-    ],
-)
-def test_parse_size_config_invalid(size_str, error_msg):
-    """Test parsing invalid size configurations."""
-    with pytest.raises(unf_exception.UnfoldError, match=error_msg):
-        unf_config.parse_size_config(size_str)
-
-
-@pytest.mark.parametrize(
     "value,expected",
     [
         # Valid depths

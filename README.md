@@ -39,8 +39,8 @@ ckanext.unfold.max_nested_count = 10
 # Maximum total items to display (limits overall tree size)
 ckanext.unfold.max_count = 1000
 
-# Maximum archive size to process (prevents processing huge files)
-ckanext.unfold.max_size = 50MB
+# Maximum archive size to process in bytes (prevents processing very large files)
+ckanext.unfold.max_size = 52428800
 
 # Supported archive formats (limits which formats to handle)
 ckanext.unfold.formats = zip tar 7z rar
