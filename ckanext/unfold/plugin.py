@@ -8,37 +8,24 @@ from ckan.common import CKANConfig
 from ckan.types import Context, DataDict
 
 import ckanext.unfold.adapters as unf_adapters
-import ckanext.unfold.config as unf_config
 import ckanext.unfold.utils as unf_utils
 from ckanext.unfold.logic.schema import get_preview_schema
+from ckanext.unfold.logic.validators import valid_count_and_depth, valid_formats
 
+
+_validators = {
+    u"valid_count_and_depth": valid_count_and_depth,
+    u"valid_formats": valid_formats
+}
 
 @tk.blanket.actions
-@tk.blanket.validators
+@tk.blanket.validators(_validators)
+@tk.blanket.config_declarations
 class UnfoldPlugin(plugins.SingletonPlugin):
     plugins.implements(plugins.IConfigurer)
     plugins.implements(plugins.IResourceView, inherit=True)
     plugins.implements(plugins.IResourceController, inherit=True)
-    plugins.implements(plugins.IConfigDeclaration)
-
-    # IConfigDeclaration
-    def declare_config_options(self, declaration, key):
-        declaration.declare(key.ckanext.unfold.max_size, "50MB").set_description(
-            "Maximum size of archives to process (e.g., 50MB, 1GB)"
-        )
-        declaration.declare(key.ckanext.unfold.max_depth, 4).set_description(
-            "Maximum depth of archive structure to display"
-        )
-        declaration.declare(key.ckanext.unfold.max_nested_count, 20).set_description(
-            "Maximum number of items to show per folder"
-        )
-        declaration.declare(key.ckanext.unfold.max_count, 100).set_description(
-            "Maximum total number of items to display from archive"
-        )
-        declaration.declare(
-            key.ckanext.unfold.formats, "zip tar 7z rar"
-        ).set_description("Supported archive formats (space-separated list)")
-
+    
     # IConfigurer
     def update_config(self, config_: CKANConfig):
         tk.add_template_directory(config_, "templates")
@@ -46,7 +33,6 @@ class UnfoldPlugin(plugins.SingletonPlugin):
         tk.add_resource("assets", "unfold")
 
     # IResourceView
-
     def info(self) -> dict[str, Any]:
         return {
             "name": "unfold_view",
@@ -60,7 +46,7 @@ class UnfoldPlugin(plugins.SingletonPlugin):
 
     def can_view(self, data_dict: DataDict) -> bool:
         resource_format = data_dict["resource"].get("format", "").lower()
-        allowed_formats = unf_config.get_formats_config()
+        allowed_formats = tk.config.get("ckanext.unfold.formats") 
         return resource_format in allowed_formats
 
     def view_template(self, context: Context, data_dict: DataDict) -> str:
@@ -70,7 +56,6 @@ class UnfoldPlugin(plugins.SingletonPlugin):
         return "unfold_form.html"
 
     # IResourceController
-
     def before_resource_update(
         self, context: Context, current: dict[str, Any], resource: dict[str, Any]
     ) -> None:

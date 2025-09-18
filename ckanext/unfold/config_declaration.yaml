@@ -1,0 +1,34 @@
+version: 1
+groups:
+  - annotation: Unfold settings
+    options:
+      - key: ckanext.unfold.max_size
+        type: int
+        default: 52428800   # 50MB in bytes
+        validators: valid_count_and_depth
+        description: Maximum size of archives to process, in bytes.
+
+      - key: ckanext.unfold.max_depth
+        type: int
+        default: 4
+        validators: valid_count_and_depth
+        description: Maximum depth of archive structure to display.
+
+      - key: ckanext.unfold.max_nested_count
+        type: int
+        default: 20
+        validators: valid_count_and_depth
+        description: Maximum number of items to show per folder.
+
+      - key: ckanext.unfold.max_count
+        type: int
+        default: 100
+        validators: valid_count_and_depth
+        description: Maximum total number of items to display from archive.
+
+      - key: ckanext.unfold.formats
+        type: list
+        default: zip tar 7z rar
+        validators: valid_formats
+        description: Supported archive formats (space-separated list).
+
