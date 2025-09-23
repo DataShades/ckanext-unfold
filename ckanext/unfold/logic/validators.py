@@ -23,9 +23,13 @@ def resource_view_id_exists(resource_view_id: str, context: types.Context) -> An
     return resource_view_id
 
  
-def valid_count_and_depth(value: Optional[int]) -> Optional[int]:
-    if value is None:
+def valid_count_and_depth(value: str) -> int:
+    if value in [None, ""]:
         return None
+    try: 
+        value = int(value)
+    except (TypeError, ValueError):
+        raise tk.Invalid(f"'{value}' is not a valid integer.")
     if value < 1:
         raise tk.Invalid(f"Config values for 'max_size', 'max_count', 'max_nested_count' and 'max_depth' must be >= 1, got: {value}")
     return value
