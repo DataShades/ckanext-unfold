@@ -4,7 +4,7 @@ import logging
 from datetime import datetime as dt
 from io import BytesIO
 from typing import Any, Optional
-from zipfile import BadZipFile, LargeZipFile, ZipFile, ZipInfo
+from zipfile import ZIP_STORED, BadZipFile, LargeZipFile, ZipFile, ZipInfo
 
 import requests
 
@@ -15,6 +15,41 @@ import ckanext.unfold.types as unf_types
 import ckanext.unfold.utils as unf_utils
 
 log = logging.getLogger(__name__)
+
+
+def ensure_dir_entries(file_list: list[ZipInfo]) -> list[ZipInfo]:
+    """
+    Ensure directory entries exist in a ZipFile infolist.
+
+    ZIP archives may omit explicit directory entries ("dir/") and only
+    contain file paths ("dir/file.txt"). Infolist() then misses those
+    directories. This function infers and adds the missing ZipInfo
+    entries so consumers can rely on a complete directory tree.
+    """
+    names = [zi.filename for zi in file_list]
+    name_set = set(names)
+
+    inferred_dirs = set()
+    for name in names:
+        # treat "dir/" as a dir and "dir/file" as a file
+        s = name[:-1] if name.endswith("/") else name
+        i = s.rfind("/")
+        while i != -1:
+            d = s[: i + 1]  # keep trailing slash to mark as dir
+            if d not in name_set:
+                inferred_dirs.add(d)
+            i = s.rfind("/", 0, i)
+
+    if inferred_dirs:
+        for d in inferred_dirs:
+            zi = ZipInfo(d)
+            # Mark as a directory: set Unix mode drwxr-xr-x
+            zi.external_attr = 0o40755 << 16
+            zi.compress_type = ZIP_STORED
+            zi.file_size = 0
+            file_list.append(zi)
+
+    return file_list
 
 
 def build_directory_tree(
@@ -37,7 +72,7 @@ def build_directory_tree(
 
     nodes: list[unf_types.Node] = []
 
-    for entry in file_list:
+    for entry in ensure_dir_entries(file_list):
         nodes.append(_build_node(entry))
 
     return nodes
@@ -66,9 +101,11 @@ def _prepare_table_data(entry: ZipInfo) -> dict[str, Any]:
     )
 
     return {
-        "size": unf_utils.printable_file_size(entry.compress_size)
-        if entry.compress_size
-        else "",
+        "size": (
+            unf_utils.printable_file_size(entry.compress_size)
+            if entry.compress_size
+            else ""
+        ),
         "type": "folder" if entry.is_dir() else "file",
         "format": fmt,
         "modified_at": modified_at or "--",
