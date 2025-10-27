@@ -17,7 +17,7 @@ import ckanext.unfold.utils as unf_utils
 log = logging.getLogger(__name__)
 
 
-def ensure_dir_entries(file_list):
+def ensure_dir_entries(file_list: list[ZipInfo]) -> list[ZipInfo]:
     """
     Ensure directory entries exist in a ZipFile infolist.
 
@@ -29,12 +29,10 @@ def ensure_dir_entries(file_list):
     names = [zi.filename for zi in file_list]
     name_set = set(names)
 
-    # Get all parent directories in a single pass
     inferred_dirs = set()
     for name in names:
         # treat "dir/" as a dir and "dir/file" as a file
         s = name[:-1] if name.endswith("/") else name
-        # climb parents using rfind (faster than split chains)
         i = s.rfind("/")
         while i != -1:
             d = s[: i + 1]  # keep trailing slash to mark as dir
@@ -42,7 +40,6 @@ def ensure_dir_entries(file_list):
                 inferred_dirs.add(d)
             i = s.rfind("/", 0, i)
 
-    # Add missing dir ZipInfos without
     if inferred_dirs:
         for d in inferred_dirs:
             zi = ZipInfo(d)
