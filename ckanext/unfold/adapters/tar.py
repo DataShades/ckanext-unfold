@@ -54,7 +54,7 @@ def _build_node(entry: TarInfo) -> unf_types.Node:
     fmt = "folder" if entry.isdir() else unf_utils.get_format_from_name(name)
 
     return unf_types.Node(
-        id=entry.name or "",
+        id=entry.name.rstrip("/") or "",
         text=unf_utils.name_from_path(entry.name),
         icon="fa fa-folder" if entry.isdir() else unf_utils.get_icon_by_format(fmt),
         state={"opened": True},
