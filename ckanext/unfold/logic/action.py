@@ -1,3 +1,4 @@
+from ckan import types
 from ckan.logic import validate
 from ckan.plugins import toolkit as tk
 
@@ -9,7 +10,9 @@ import ckanext.unfold.utils as unf_utils
 
 @tk.side_effect_free
 @validate(unf_schema.get_archive_structure)
-def get_archive_structure(context, data_dict):
+def get_archive_structure(
+    context: types.Context, data_dict: types.Dict[str, str]
+) -> dict[str, str] | list[dict[str, str]]:
     resource = tk.get_action("resource_show")(context, {"id": data_dict["id"]})
     resource_view = tk.get_action("resource_view_show")(
         context, {"id": data_dict["view_id"]}

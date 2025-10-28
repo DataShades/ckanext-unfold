@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime as dt
 from io import BytesIO
-from typing import Any, Optional
+from typing import Any
 from zipfile import ZIP_STORED, BadZipFile, LargeZipFile, ZipFile, ZipInfo
 
 import requests
@@ -18,8 +18,7 @@ log = logging.getLogger(__name__)
 
 
 def ensure_dir_entries(file_list: list[ZipInfo]) -> list[ZipInfo]:
-    """
-    Ensure directory entries exist in a ZipFile infolist.
+    """Ensure directory entries exist in a ZipFile infolist.
 
     ZIP archives may omit explicit directory entries ("dir/") and only
     contain file paths ("dir/file.txt"). Infolist() then misses those
@@ -53,7 +52,7 @@ def ensure_dir_entries(file_list: list[ZipInfo]) -> list[ZipInfo]:
 
 
 def build_directory_tree(
-    filepath: str, resource_view: dict[str, Any], remote: Optional[bool] = False
+    filepath: str, resource_view: dict[str, Any], remote: bool = False
 ) -> list[unf_types.Node]:
     try:
         if remote:
@@ -66,16 +65,11 @@ def build_directory_tree(
 
                 file_list: list[ZipInfo] = archive.infolist()
     except (LargeZipFile, BadZipFile) as e:
-        raise unf_exception.UnfoldError(f"Error openning archive: {e}")
+        raise unf_exception.UnfoldError(f"Error openning archive: {e}") from e
     except requests.RequestException as e:
-        raise unf_exception.UnfoldError(f"Error fetching remote archive: {e}")
+        raise unf_exception.UnfoldError(f"Error fetching remote archive: {e}") from e
 
-    nodes: list[unf_types.Node] = []
-
-    for entry in ensure_dir_entries(file_list):
-        nodes.append(_build_node(entry))
-
-    return nodes
+    return [_build_node(entry) for entry in ensure_dir_entries(file_list)]
 
 
 def _build_node(entry: ZipInfo) -> unf_types.Node:
@@ -112,8 +106,8 @@ def _prepare_table_data(entry: ZipInfo) -> dict[str, Any]:
     }
 
 
-def get_ziplist_from_url(url) -> list[ZipInfo]:
-    head = requests.head(url)
+def get_ziplist_from_url(url: str) -> list[ZipInfo]:
+    head = requests.head(url, timeout=unf_utils.DEFAULT_TIMEOUT)
     end = None
 
     if "content-length" in head.headers:
@@ -128,12 +122,10 @@ def get_ziplist_from_url(url) -> list[ZipInfo]:
     return _get_remote_zip_infolist(url, end - 65536, end)
 
 
-def _get_remote_zip_infolist(url: str, start, end) -> list[ZipInfo]:
+def _get_remote_zip_infolist(url: str, start: int, end: int) -> list[ZipInfo]:
     resp = requests.get(
         url,
-        headers={
-            "Range": "bytes={}-{}".format(start, end),
-        },
+        headers={"Range": f"bytes={start}-{end}"},
         timeout=unf_utils.DEFAULT_TIMEOUT,
     )
 

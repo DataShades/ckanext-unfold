@@ -19,6 +19,7 @@ Features:
 ## Supported Versions
 
 CKAN >= 2.10
+Python >= 3.11
 
 ## Configuration
 
@@ -29,24 +30,9 @@ ckan.views.default_views = unfold_view
 
 ### Optional Settings
 
-```ini
-# Maximum directory depth to display (prevents deep nesting)
-ckanext.unfold.max_depth = 5
+See the [config declaration](./ckanext/unfold/config_declaration.yaml) file.
 
-# Maximum items per directory (prevents overwhelming folder contents)
-ckanext.unfold.max_nested_count = 10
-
-# Maximum total items to display (limits overall tree size)
-ckanext.unfold.max_count = 1000
-
-# Maximum archive size to process in bytes (prevents processing very large files)
-ckanext.unfold.max_size = 52428800
-
-# Supported archive formats (limits which formats to handle)
-ckanext.unfold.formats = zip tar 7z rar
-```
-
-## What are the dependencies?
+## Dependencies
 
 Working with different archive formats requires different tools:
 

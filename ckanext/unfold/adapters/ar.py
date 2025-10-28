@@ -5,8 +5,8 @@ from io import BytesIO
 from typing import Any, Optional
 
 import requests
-from ar import Archive
-from ar.archive import Archive, ArchiveError, ArPath
+from ar import Archive, ArchiveError
+from ar.archive import ArPath
 
 import ckanext.unfold.exception as unf_exception
 import ckanext.unfold.types as unf_types
@@ -16,7 +16,7 @@ log = logging.getLogger(__name__)
 
 
 def build_directory_tree(
-    filepath: str, resource_view: dict[str, Any], remote: Optional[bool] = False
+    filepath: str, resource_view: dict[str, Any], remote: bool = False
 ) -> list[unf_types.Node]:
     try:
         if remote:
@@ -26,18 +26,11 @@ def build_directory_tree(
                 archive = Archive(file)
                 file_list: list[ArPath] = archive.entries
     except ArchiveError as e:
-        raise unf_exception.UnfoldError(f"Error openning archive: {e}")
+        raise unf_exception.UnfoldError(f"Error openning archive: {e}") from e
     except requests.RequestException as e:
-        raise unf_exception.UnfoldError(f"Error fetching remote archive: {e}")
+        raise unf_exception.UnfoldError(f"Error fetching remote archive: {e}") from e
 
-    nodes: list[unf_types.Node] = []
-
-    for entry in file_list:
-        nodes.append(_build_node(entry))
-
-    # nodes = _add_folder_nodes(nodes)
-
-    return nodes
+    return [_build_node(entry) for entry in file_list]
 
 
 def _build_node(entry: ArPath) -> unf_types.Node:
@@ -64,13 +57,13 @@ def _prepare_table_data(entry: ArPath) -> dict[str, Any]:
     }
 
 
-def get_arlist_from_url(url) -> list[ArPath]:
-    """Download an archive and fetch a file list"""
+def get_arlist_from_url(url: str) -> list[ArPath]:
+    """Download an archive and fetch a file list."""
     resp = requests.get(url, timeout=unf_utils.DEFAULT_TIMEOUT)
 
     try:
         archive = Archive(BytesIO(resp.content))
     except ArchiveError as e:
-        raise unf_exception.UnfoldError(f"Error openning archive: {e}")
+        raise unf_exception.UnfoldError(f"Error openning archive: {e}") from e
 
     return archive.entries

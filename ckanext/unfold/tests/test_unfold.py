@@ -7,7 +7,7 @@ from ckanext.unfold import types, utils
 
 @pytest.mark.usefixtures("with_request_context")
 @pytest.mark.parametrize(
-    "file_format, num_nodes",
+    ("file_format", "num_nodes"),
     [
         ("rar", 13),
         ("cbr", 38),
@@ -33,4 +33,4 @@ def test_build_tree(file_format: str, num_nodes: int):
     tree = utils.get_adapter_for_format(file_format)(file_path, {})
 
     assert len(tree) == num_nodes
-    assert type(tree[0]) == types.Node
+    assert isinstance(tree[0], types.Node)

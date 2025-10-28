@@ -7,10 +7,11 @@ import pytest
 
 import ckanext.unfold.truncate as unf_truncate
 import ckanext.unfold.types as unf_types
+import ckanext.unfold.utils as unf_utils
 
 
 @pytest.mark.parametrize(
-    "archive_size,max_size,expected",
+    ("archive_size", "max_size", "expected"),
     [
         (1000, 2000, True),
         (2000, 1000, False),
@@ -18,12 +19,13 @@ import ckanext.unfold.types as unf_types
         (None, 1000, True),
     ],
 )
-def test_check_size_limit(archive_size, max_size, expected):
-    result = unf_truncate.check_size_limit(archive_size, max_size)
-    assert result == expected
+def test_check_size_limit(
+    archive_size: int | None, max_size: int | None, expected: bool
+):
+    assert unf_utils.check_size_limit(archive_size, max_size) == expected
 
 
-def test_sort_nodes(complex_tree):
+def test_sort_nodes(complex_tree: list[unf_types.Node]):
     before = deepcopy(complex_tree)
     random.shuffle(complex_tree)
     after = unf_truncate.sort_nodes(complex_tree)
@@ -31,27 +33,29 @@ def test_sort_nodes(complex_tree):
 
 
 @pytest.mark.parametrize(
-    "max_count,expect_truncation",
+    ("max_total", "expect_truncation"),
     [
         (5, True),
         (10, True),
         (20, True),
         (100, False),
-        (None, False),
     ],
 )
-def test_max_count(complex_tree, max_count, expect_truncation):
-    before = deepcopy(complex_tree)
+def test_max_total(
+    complex_tree: list[unf_types.Node], max_total: int, expect_truncation: bool
+):
     random.shuffle(complex_tree)
-    truncated_nodes = unf_truncate.apply_all_truncations(
-        complex_tree, max_count=max_count
-    )
+    truncated_nodes = unf_truncate.truncate_nodes(complex_tree, max_total=max_total)
+
     if expect_truncation:
-        assert len(truncated_nodes) in [max_count, max_count + 1]  # empty folders are not allowed an additional nodecould be added.
+        assert len(truncated_nodes) in [
+            max_total,
+            max_total + 1,
+        ]  # empty folders are not allowed an additional nodecould be added.
 
 
 @pytest.mark.parametrize(
-    "max_depth,expect_truncation",
+    ("max_depth", "expect_truncation"),
     [
         (1, True),
         (2, True),
@@ -60,12 +64,12 @@ def test_max_count(complex_tree, max_count, expect_truncation):
         (None, False),
     ],
 )
-def test_max_depth(complex_tree, max_depth, expect_truncation):
-    before = deepcopy(complex_tree)
+def test_max_depth(
+    complex_tree: list[unf_types.Node], max_depth: int | None, expect_truncation: bool
+):
     random.shuffle(complex_tree)
-    truncated_nodes = unf_truncate.apply_all_truncations(
-        complex_tree, max_depth=max_depth
-    )
+
+    truncated_nodes = unf_truncate.truncate_nodes(complex_tree, max_depth=max_depth)
 
     if expect_truncation:
         assert any(["__truncated__" in n.id for n in truncated_nodes])
@@ -74,7 +78,7 @@ def test_max_depth(complex_tree, max_depth, expect_truncation):
 
 
 @pytest.mark.parametrize(
-    "max_nested_count,expect_truncation",
+    ("max_nested", "expect_truncation"),
     [
         (1, True),
         (4, True),
@@ -83,12 +87,9 @@ def test_max_depth(complex_tree, max_depth, expect_truncation):
         (None, False),
     ],
 )
-def test_max_nested_count(complex_tree, max_nested_count, expect_truncation):
-    before = deepcopy(complex_tree)
+def test_max_nested(complex_tree, max_nested, expect_truncation):
     random.shuffle(complex_tree)
-    truncated_nodes = unf_truncate.apply_all_truncations(
-        complex_tree, max_nested_count=max_nested_count
-    )
+    truncated_nodes = unf_truncate.truncate_nodes(complex_tree, max_nested=max_nested)
 
     if expect_truncation:
         filtered = [n.id for n in truncated_nodes]
@@ -96,23 +97,28 @@ def test_max_nested_count(complex_tree, max_nested_count, expect_truncation):
 
 
 @pytest.mark.parametrize(
-    "max_count, max_nested_count, max_depth, expect_truncation, expect_truncation_at_end",
+    (
+        "max_total",
+        "max_nested",
+        "max_depth",
+        "expect_truncation",
+        "expect_truncation_at_end",
+    ),
     [(10, 5, 2, True, True), (15, 5, 2, True, True), (20, 5, 2, True, False)],
 )
 def test_mixed(
-    complex_tree,
-    max_count,
-    max_nested_count,
-    max_depth,
-    expect_truncation,
-    expect_truncation_at_end,
+    complex_tree: list[unf_types.Node],
+    max_total: int,
+    max_nested: int,
+    max_depth: int | None,
+    expect_truncation: bool,
+    expect_truncation_at_end: bool,
 ):
-    before = deepcopy(complex_tree)
     random.shuffle(complex_tree)
-    truncated_nodes = unf_truncate.apply_all_truncations(
+    truncated_nodes = unf_truncate.truncate_nodes(
         complex_tree,
-        max_count=max_count,
-        max_nested_count=max_nested_count,
+        max_total=max_total,
+        max_nested=max_nested,
         max_depth=max_depth,
     )
 

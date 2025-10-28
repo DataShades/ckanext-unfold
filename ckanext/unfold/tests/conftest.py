@@ -1,4 +1,5 @@
 import pathlib
+from collections.abc import Callable
 
 import pytest
 
@@ -7,18 +8,18 @@ import ckanext.unfold.types as unf_types
 
 @pytest.fixture
 def create_test_node():
-    def _create_test_node(node_id: str, node_type: str = None) -> unf_types.Node:
+    def _create_test_node(node_id: str, node_type: str | None = None) -> unf_types.Node:
         path = pathlib.Path(node_id)
         parent = (
             path.parent.as_posix() if path.parent.as_posix() not in ["/", "."] else "#"
         )
         if node_type is None:
             node_type = "file" if path.suffix else "folder"
-        icon = "fa fa-folder" if node_type == "folder" else "fa fa-file"
+
         return unf_types.Node(
             id=node_id,
             text=node_id.split("/")[-1],
-            icon=icon,
+            icon="fa fa-folder" if node_type == "folder" else "fa fa-file",
             parent=parent,
             state={"opened": True},
             data={
@@ -33,8 +34,10 @@ def create_test_node():
 
 
 @pytest.fixture
-def complex_tree(create_test_node):
-    nodes = [
+def complex_tree(
+    create_test_node: Callable[..., unf_types.Node],
+) -> list[unf_types.Node]:
+    return [
         create_test_node("a"),
         create_test_node("a/file1.txt"),
         create_test_node("a/file2.config.json"),
@@ -81,4 +84,3 @@ def complex_tree(create_test_node):
         create_test_node("a/x/y/z/file3", "file"),
         create_test_node("a/x/y/z/file4", "file"),
     ]
-    return nodes

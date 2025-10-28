@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from io import BytesIO
-from typing import Any, Optional
+from typing import Any
 
 import py7zr
 import requests
@@ -18,7 +18,7 @@ log = logging.getLogger(__name__)
 
 
 def build_directory_tree(
-    filepath: str, resource_view: dict[str, Any], remote: Optional[bool] = False
+    filepath: str, resource_view: dict[str, Any], remote: bool = False
 ) -> list[unf_types.Node]:
     try:
         if remote:
@@ -32,16 +32,11 @@ def build_directory_tree(
 
                 file_list: list[FileInfo] = archive.list()
     except exceptions.ArchiveError as e:
-        raise unf_exception.UnfoldError(f"Error openning archive: {e}")
+        raise unf_exception.UnfoldError(f"Error openning archive: {e}") from e
     except requests.RequestException as e:
-        raise unf_exception.UnfoldError(f"Error fetching remote archive: {e}")
+        raise unf_exception.UnfoldError(f"Error fetching remote archive: {e}") from e
 
-    nodes: list[unf_types.Node] = []
-
-    for entry in file_list:
-        nodes.append(_build_node(entry))
-
-    return nodes
+    return [_build_node(entry) for entry in file_list]
 
 
 def _build_node(entry: FileInfo) -> unf_types.Node:
@@ -80,9 +75,12 @@ def _prepare_table_data(entry: FileInfo) -> dict[str, Any]:
     }
 
 
-def get7zlist_from_url(url) -> list[FileInfo]:
-    """Download an archive and fetch a file list. 7z file doesn't allow us
-    to download it partially and fetch only file list."""
+def get7zlist_from_url(url: str) -> list[FileInfo]:
+    """Download an archive and fetch a file list.
+
+    7z file doesn't allow us to download it partially
+    and fetch only file list.
+    """
     resp = requests.get(url, timeout=unf_utils.DEFAULT_TIMEOUT)
 
     archive = py7zr.SevenZipFile(BytesIO(resp.content))

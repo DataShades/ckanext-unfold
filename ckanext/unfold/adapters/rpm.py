@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from io import BytesIO
-from typing import Any, Optional
+from typing import Any
 
 import requests
 from rpmfile import RPMFile, RPMInfo
@@ -15,7 +15,7 @@ log = logging.getLogger(__name__)
 
 
 def build_directory_tree(
-    filepath: str, resource_view: dict[str, Any], remote: Optional[bool] = False
+    filepath: str, resource_view: dict[str, Any], remote: bool = False
 ) -> list[unf_types.Node]:
     try:
         if remote:
@@ -24,18 +24,13 @@ def build_directory_tree(
             with RPMFile(filepath, "rb") as archive:
                 file_list: list[RPMInfo] = archive.getmembers()
     except (NotImplementedError, KeyError) as e:
-        raise unf_exception.UnfoldError(f"Error openning archive: {e}")
+        raise unf_exception.UnfoldError(f"Error openning archive: {e}") from e
     except requests.RequestException as e:
-        raise unf_exception.UnfoldError(f"Error fetching remote archive: {e}")
+        raise unf_exception.UnfoldError(f"Error fetching remote archive: {e}") from e
 
-    nodes: list[unf_types.Node] = []
+    nodes = [_build_node(entry) for entry in file_list]
 
-    for entry in file_list:
-        nodes.append(_build_node(entry))
-
-    nodes = _add_folder_nodes(nodes)
-
-    return nodes
+    return _add_folder_nodes(nodes)
 
 
 def _build_node(entry: RPMInfo) -> unf_types.Node:
@@ -64,17 +59,20 @@ def _prepare_table_data(entry: RPMInfo) -> dict[str, Any]:
     }
 
 
-def get_rpmlist_from_url(url) -> list[RPMInfo]:
-    """Download an archive and fetch a file list. Tar file doesn't allow us
-    to download it partially and fetch only file list, because the information
-    about each file is stored at the beggining of the file"""
+def get_rpmlist_from_url(url: str) -> list[RPMInfo]:
+    """Download an archive and fetch a file list.
+
+    Tar file doesn't allow us to download it partially
+    and fetch only file list, because the information
+    about each file is stored at the beggining of the file
+    """
     resp = requests.get(url, timeout=unf_utils.DEFAULT_TIMEOUT)
 
     return RPMFile(fileobj=BytesIO(resp.content)).getmembers()
 
 
 def _add_folder_nodes(nodes: list[unf_types.Node]) -> list[unf_types.Node]:
-    folder_nodes = {}
+    folder_nodes: dict[str, unf_types.Node] = {}
 
     for node in nodes:
         if node.parent == "#":
@@ -82,7 +80,7 @@ def _add_folder_nodes(nodes: list[unf_types.Node]) -> list[unf_types.Node]:
 
         _build_parent_node(node.parent, folder_nodes)
 
-    return nodes + [node for node in folder_nodes.values()]
+    return nodes + list(folder_nodes.values())
 
 
 def _build_parent_node(

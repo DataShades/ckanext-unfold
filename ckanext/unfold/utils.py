@@ -4,13 +4,14 @@ import json
 import logging
 import math
 import pathlib
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
-import ckan.plugins.toolkit as tk
-import ckan.lib.uploader as uploader
 from ckan.lib.redis import connect_to_redis
+from ckan.lib.uploader import get_resource_uploader
 
 import ckanext.unfold.adapters as unf_adapters
+import ckanext.unfold.config as unf_config
 import ckanext.unfold.exception as unf_exception
 import ckanext.unfold.truncate as unf_truncate
 import ckanext.unfold.types as unf_types
@@ -99,11 +100,11 @@ def printable_file_size(size_bytes: int) -> str:
     i = int(math.floor(math.log(size_bytes, 1024)))
     p = math.pow(1024, i)
     s = round(float(size_bytes) / p, 1)
-    return "%s %s" % (s, size_name[i])
+    return f"{s} {size_name[i]}"
 
 
 def save_archive_structure(nodes: list[unf_types.Node], resource_id: str) -> None:
-    """Save an archive structure to redis to"""
+    """Save an archive structure to redis to."""
     conn = connect_to_redis()
     conn.set(
         f"ckanext:unfold:tree:{resource_id}",
@@ -113,7 +114,7 @@ def save_archive_structure(nodes: list[unf_types.Node], resource_id: str) -> Non
 
 
 def get_archive_structure(resource_id: str) -> list[unf_types.Node] | None:
-    """Retrieve an archive structure from redis"""
+    """Retrieve an archive structure from redis."""
     conn = connect_to_redis()
     data = conn.get(f"ckanext:unfold:tree:{resource_id}")
     conn.close()
@@ -122,7 +123,10 @@ def get_archive_structure(resource_id: str) -> list[unf_types.Node] | None:
 
 
 def delete_archive_structure(resource_id: str) -> None:
-    """Delete an archive structure from redis. Called on resource delete/update"""
+    """Delete an archive structure from redis.
+
+    Called on resource delete/update
+    """
     conn = connect_to_redis()
     conn.delete(f"ckanext:unfold:tree:{resource_id}")
     conn.close()
@@ -134,7 +138,7 @@ def get_archive_tree(
     remote = False
 
     if resource.get("url_type") == "upload":
-        upload = uploader.get_resource_uploader(resource)
+        upload = get_resource_uploader(resource)
         filepath = upload.get_path(resource["id"])
     else:
         if not resource.get("url"):
@@ -151,35 +155,37 @@ def get_archive_tree(
         except (ValueError, TypeError):
             archive_size = None
 
-    if not unf_truncate.check_size_limit(archive_size, tk.config.get("ckanext.unfold.max_size")):
+    max_size = unf_config.get_max_size()
+
+    if not check_size_limit(archive_size, max_size):
+        file_size = printable_file_size(archive_size) if archive_size else "unknown"
+        max_size = printable_file_size(max_size)
         log.warning(
-            f"Skipping archive processing: size {printable_file_size(archive_size) if archive_size else 'unknown'} "
-            f"exceeds maximum allowed size of {printable_file_size(max_size)} for resource {resource.get('id', 'unknown')}"
+            "Skipping archive processing: size %s "
+            "exceeds maximum allowed size of %s "
+            "for resource %s",
+            file_size,
+            max_size,
+            resource.get("id", "unknown"),
         )
         return []
 
-    if tree := get_archive_structure(resource["id"]):
-        # Return cached tree directly - it was already truncated when first processed
-        return tree
+    cache_enabled = unf_config.is_cache_enabled()
+    cached_tree = get_archive_structure(resource["id"])
+
+    if cache_enabled and cached_tree:
+        return cached_tree
 
     adapter = get_adapter_for_format(resource["format"].lower())
     tree = adapter(filepath, resource_view, remote=remote)
 
     # Apply truncation limits before saving
-    truncated_tree = _apply_truncation_limits(tree)
-    save_archive_structure(truncated_tree, resource["id"])
+    truncated_tree = unf_truncate.truncate_nodes(tree)
+
+    if cache_enabled:
+        save_archive_structure(truncated_tree, resource["id"])
 
     return truncated_tree
-
-
-def _apply_truncation_limits(tree: list[unf_types.Node]) -> list[unf_types.Node]:
-    
-    return unf_truncate.apply_all_truncations(
-        tree,
-        max_depth=tk.config.get("ckanext.unfold.max_depth"),
-        max_nested_count=tk.config.get("ckanext.unfold.max_nested_count"),
-        max_count=tk.config.get("ckanext.unfold.max_count"),
-    )
 
 
 def get_adapter_for_format(res_format: str) -> Callable[..., list[unf_types.Node]]:
@@ -187,3 +193,10 @@ def get_adapter_for_format(res_format: str) -> Callable[..., list[unf_types.Node
         raise unf_exception.UnfoldError(f"No adapter for `{res_format}` archives")
 
     return unf_adapters.ADAPTERS[res_format]
+
+
+def check_size_limit(archive_size: int | None, max_size: int | None) -> bool:
+    if max_size is None or archive_size is None:
+        return True
+
+    return archive_size < max_size

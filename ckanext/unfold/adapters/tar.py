@@ -5,7 +5,7 @@ import tarfile
 from datetime import datetime as dt
 from io import BytesIO
 from tarfile import TarError, TarFile, TarInfo
-from typing import Any, Optional
+from typing import Any
 
 import requests
 
@@ -21,8 +21,8 @@ log = logging.getLogger(__name__)
 def build_directory_tree(
     filepath: str,
     resource_view: dict[str, Any],
-    remote: Optional[bool] = False,
-    compression: Optional[str] = None,
+    remote: bool = False,
+    compression: str | None = None,
 ) -> list[unf_types.Node]:
     mode = "r" if not compression else f"r:{compression}"
 
@@ -36,16 +36,11 @@ def build_directory_tree(
                 # investigate it if someone will have such a problem lately
                 file_list: list[TarInfo] = archive.getmembers()
     except TarError as e:
-        raise unf_exception.UnfoldError(f"Error openning archive: {e}")
+        raise unf_exception.UnfoldError(f"Error openning archive: {e}") from e
     except requests.RequestException as e:
-        raise unf_exception.UnfoldError(f"Error fetching remote archive: {e}")
+        raise unf_exception.UnfoldError(f"Error fetching remote archive: {e}") from e
 
-    nodes: list[unf_types.Node] = []
-
-    for entry in file_list:
-        nodes.append(_build_node(entry))
-
-    return nodes
+    return [_build_node(entry) for entry in file_list]
 
 
 def _build_node(entry: TarInfo) -> unf_types.Node:
@@ -78,10 +73,13 @@ def _prepare_table_data(entry: TarInfo) -> dict[str, Any]:
     }
 
 
-def get_tarlist_from_url(url) -> list[TarInfo]:
-    """Download an archive and fetch a file list. Tar file doesn't allow us
-    to download it partially and fetch only file list, because the information
-    about each file is stored at the beggining of the file"""
+def get_tarlist_from_url(url: str) -> list[TarInfo]:
+    """Download an archive and fetch a file list.
+
+    Tar file doesn't allow us to download it partially
+    and fetch only file list, because the information
+    about each file is stored at the beginning of the file
+    """
     resp = requests.get(url, timeout=unf_utils.DEFAULT_TIMEOUT)
 
     return TarFile(fileobj=BytesIO(resp.content)).getmembers()

@@ -5,9 +5,7 @@ from . import _7z, ar, rar, rpm, tar, zip
 ADAPTERS = {
     "rar": rar.build_directory_tree,
     "cbr": rar.build_directory_tree,
-    "application/vnd.rar": rar.build_directory_tree,
     "7z": _7z.build_directory_tree,
-    "application/x-7z-compressed": _7z.build_directory_tree,
     "zip": zip.build_directory_tree,
     "zipx": zip.build_directory_tree,
     "jar": zip.build_directory_tree,

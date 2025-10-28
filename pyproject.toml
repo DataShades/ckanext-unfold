@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ckanext-unfold"
-version = "1.1.6"
+version = "2.0.0"
 description = "Provides previews for multiple archive formats"
 authors = [
     {name = "DataShades", email = "datashades@linkdigital.com.au"},
@@ -17,16 +17,16 @@ license = {text = "AGPL"}
 classifiers = [
     "Development Status :: 4 - Beta",
     "License :: OSI Approved :: GNU Affero General Public License v3 or later (AGPLv3+)",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
 ]
 keywords = ["CKAN"]
 urls = {Homepage = "https://github.com/DataShades/ckanext-unfold"}
 dependencies = [
-    "rarfile==4.0",
-    "py7zr==0.20.6",
-    "rpmfile==1.1.1",
+    "rarfile>=4.0",
+    "py7zr>=0.20.6",
+    "rpmfile>=1.1.1",
     "pydantic>=2.3.0,<3.0.0",
     "ar>=1.0.0,<2.0.0",
     "zstandard>=0.21.0,<1.0.0",
@@ -46,12 +46,8 @@ content-type = "text/markdown"
 [tool.setuptools.packages]
 find = {}
 
-[tool.black]
-# line-length = 88
-# preview = true
-
 [tool.ruff]
-target-version = "py38"
+target-version = "py311"
 
 [tool.isort]
 known_ckan = "ckan"
@@ -68,7 +64,7 @@ filterwarnings = [
 ]
 
 [tool.pyright]
-pythonVersion = "3.8"
+pythonVersion = "3.11"
 include = ["ckanext"]
 exclude = [
     "**/test*",

@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime as dt
 from io import BytesIO
-from typing import Any, Optional
+from typing import Any
 
 import rarfile
 import requests
@@ -20,47 +20,46 @@ log = logging.getLogger(__name__)
 
 
 def build_directory_tree(
-    filepath: str, resource_view: dict[str, Any], remote: Optional[bool] = False
+    filepath: str, resource_view: dict[str, Any], remote: bool = False
 ) -> list[unf_types.Node]:
     try:
         if remote:
             file_list = get_rarlist_from_url(filepath)
         else:
             with rarfile.RarFile(filepath) as archive:
-                if archive.needs_password() and not resource_view.get("archive_pass"):
+                needs_password = archive.needs_password()
+
+                if needs_password and not resource_view.get("archive_pass"):
                     raise unf_exception.UnfoldError(
                         "Error. Archive is protected with password"
                     )
-                elif archive.needs_password():
+
+                if needs_password:
                     archive.setpassword(resource_view["archive_pass"])
 
                 file_list: list[RarInfo] = archive.infolist()
     except RarError as e:
-        raise unf_exception.UnfoldError(f"Error openning archive: {e}")
+        raise unf_exception.UnfoldError(f"Error openning archive: {e}") from e
     except requests.RequestException as e:
-        raise unf_exception.UnfoldError(f"Error fetching remote archive: {e}")
+        raise unf_exception.UnfoldError(f"Error fetching remote archive: {e}") from e
 
     if not file_list:
         raise unf_exception.UnfoldError(
             "Error. The archive is either empty or the password is incorrect."
         )
 
-    nodes: list[unf_types.Node] = []
-
-    for entry in file_list:
-        nodes.append(_build_node(entry))
-
-    return nodes
+    return [_build_node(entry) for entry in file_list]
 
 
 def _build_node(entry: RarInfo) -> unf_types.Node:
-    parts = [p for p in entry.filename.split("/") if p]
-    name = unf_utils.name_from_path(entry.filename)
+    filename = entry.filename or ""
+    parts = [p for p in filename.split("/") if p]
+    name = unf_utils.name_from_path(filename)
     fmt = "" if entry.isdir() else unf_utils.get_format_from_name(name)
 
     return unf_types.Node(
-        id=entry.filename.rstrip("/") or "",
-        text=unf_utils.name_from_path(entry.filename),
+        id=filename.rstrip("/") or "",
+        text=unf_utils.name_from_path(filename),
         icon="fa fa-folder" if entry.isdir() else unf_utils.get_icon_by_format(fmt),
         state={"opened": True},
         parent="/".join(parts[:-1]) if parts[:-1] else "#",
@@ -98,9 +97,11 @@ def _fetch_mtime(entry: RarInfo) -> str:
     return modified_at or "--"
 
 
-def get_rarlist_from_url(url) -> list[RarInfo]:
-    """Download an archive and fetch a file list. Rar file doesn't allow us
-    to download it partially and fetch only file list."""
+def get_rarlist_from_url(url: str) -> list[RarInfo]:
+    """Download an archive and fetch a file list.
+
+    Rar file doesn't allow us to download it partially and fetch only file list.
+    """
     resp = requests.get(url, timeout=unf_utils.DEFAULT_TIMEOUT)
 
     archive = rarfile.RarFile(BytesIO(resp.content))
