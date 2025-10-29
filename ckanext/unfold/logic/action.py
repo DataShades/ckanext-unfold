@@ -22,16 +22,11 @@ def get_archive_structure(
     resource_view = tk.get_action("resource_view_show")(
         context, {"id": data_dict["view_id"]}
     )
-    # parent_id = data_dict.get("parent_id", "#")
 
     try:
         nodes = unf_utils.get_archive_tree(resource, resource_view)
     except unf_exception.UnfoldError as e:
         return {"error": str(e)}
-
-    # # # Filter for lazy loading
-    # if parent_id != "#":
-    #     nodes = [n for n in nodes if n.parent == "#"]
 
     close_folders = len(nodes) > EXPAND_NODES_THRESHOLD
     return [serialize_node(n, close_folders) for n in nodes]

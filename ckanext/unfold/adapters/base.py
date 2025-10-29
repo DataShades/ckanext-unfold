@@ -7,11 +7,12 @@ import requests
 
 import ckanext.unfold.config as unf_config
 import ckanext.unfold.exception as unf_exception
-import ckanext.unfold.truncate as unf_truncate
 import ckanext.unfold.types as unf_types
 import ckanext.unfold.utils as unf_utils
 
 log = logging.getLogger(__name__)
+
+DEFAULT_TIMEOUT = 60  # seconds
 
 
 class BaseAdapter:
@@ -43,7 +44,7 @@ class BaseAdapter:
             except (ValueError, TypeError):
                 archive_size = None
 
-        max_size = unf_config.get_max_size()
+        max_size = unf_config.get_max_file_size()
 
         if archive_size is None or archive_size < max_size:
             return

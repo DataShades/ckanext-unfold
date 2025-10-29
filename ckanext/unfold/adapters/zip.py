@@ -13,7 +13,7 @@ import ckan.plugins.toolkit as tk
 import ckanext.unfold.exception as unf_exception
 import ckanext.unfold.types as unf_types
 import ckanext.unfold.utils as unf_utils
-from ckanext.unfold.adapters.base import BaseAdapter
+from ckanext.unfold.adapters.base import DEFAULT_TIMEOUT, BaseAdapter
 
 log = logging.getLogger(__name__)
 
@@ -41,7 +41,7 @@ class ZipAdapter(BaseAdapter):
 
     def get_file_list_from_url(self, url: str) -> list[ZipInfo]:
         try:
-            head = requests.head(url, timeout=unf_utils.DEFAULT_TIMEOUT)
+            head = requests.head(url, timeout=DEFAULT_TIMEOUT)
         except requests.RequestException as e:
             raise unf_exception.UnfoldError(
                 f"Error fetching remote archive headers: {e}"
@@ -91,15 +91,20 @@ class ZipAdapter(BaseAdapter):
             ),
             "type": "folder" if entry.is_dir() else "file",
             "format": fmt,
-            "modified_at": modified_at or "--",
+            "modified_at": modified_at or "",
         }
 
     def _get_remote_zip_infolist(self, url: str, start: int, end: int) -> list[ZipInfo]:
-        resp = requests.get(
-            url,
-            headers={"Range": f"bytes={start}-{end}"},
-            timeout=unf_utils.DEFAULT_TIMEOUT,
-        )
+        try:
+            resp = requests.get(
+                url,
+                headers={"Range": f"bytes={start}-{end}"},
+                timeout=DEFAULT_TIMEOUT,
+            )
+        except requests.RequestException as e:
+            raise unf_exception.UnfoldError(
+                f"Error fetching remote archive: {e}"
+            ) from e
 
         return ZipFile(BytesIO(resp.content)).infolist()
 

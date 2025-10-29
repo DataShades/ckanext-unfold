@@ -79,7 +79,7 @@ $image-path: "../../images";
 
 #archive-tree {
     margin-bottom: 1rem;
-    max-height: 700px;
+    height: 700px;
     overflow-y: scroll;
 }
 
@@ -91,7 +91,7 @@ $image-path: "../../images";
 
 .jstree-anchor {
     display: inline-flex !important;
-    width: 96% !important;
+    width: 97% !important;
 
     .unfold-node-metadata {
         margin-left: auto;
@@ -111,22 +111,24 @@ $image-path: "../../images";
 
     .unf-cell-size {
         margin-left: auto;
-        margin-right: 1.5rem;
+        // margin-right: 1.5rem;
+        min-width: 90px;
     }
 
     .unf-cell-modified-at {
-        margin-right: 1.5rem;
+        // margin-right: 1.5rem;
+        min-width: 160px;
     }
 
     @media (min-width: 768px) {
-        .unf-cell-size {
-            margin-left: auto;
-            margin-right: 3rem;
-        }
+        // .unf-cell-size {
+        //     margin-left: auto;
+        //     margin-right: 3rem;
+        // }
 
-        .unf-cell-modified-at {
-            margin-right: 2.5rem;
-        }
+        // .unf-cell-modified-at {
+        //     margin-right: 2.5rem;
+        // }
     }
 }
 

@@ -5,6 +5,9 @@ ckan.module("unfold-init-jstree", function ($, _) {
             data: null,
             resourceId: null,
             resourceViewId: null,
+            animationThreshold: 1000,
+            searchShowOnlyMatches: true,
+            searchCloseOpenedOnClear: false
         },
 
         initialize: function () {
@@ -16,10 +19,7 @@ ckan.module("unfold-init-jstree", function ($, _) {
 
             $("#jstree-search").on("change", (e) => this.tree.jstree("search", $(e.target).val()));
             $("#jstree-search-clear").click(() => $("#jstree-search").val("").trigger("change"));
-            $("#jstree-expand-all").click(() => {
-                this.loadState.show();
-                this.tree.jstree("open_all");
-            });
+            $("#jstree-expand-all").click(() => this.tree.jstree("open_all"));
             $("#jstree-collapse-all").click(() => this.tree.jstree("close_all"));
 
             document.addEventListener("keydown", this._onPageSearch);
@@ -44,29 +44,34 @@ ckan.module("unfold-init-jstree", function ($, _) {
         },
 
         _displayErrorReason: function (error) {
-            $(".archive-tree--spinner").remove();
+            $("#archive-tree--loader").remove();
             $("#archive-tree-error span").text(error);
             $("#archive-tree-error").toggle();
         },
 
         _initJsTree: function (data) {
+            let withAnimation = data.length < this.options.animationThreshold;
+
             this.tree = $(this.el)
-                .on("ready.jstree", () => {
-                    this.loadState.hide();
-                })
-                .on("loading.jstree", () => {
-                    this.loadState.show();
-                })
-                .on("open_all.jstree", () => {
-                    this.loadState.hide();
-                })
+                .on("ready.jstree", () => this.loadState.hide())
+                .on("loading.jstree", () => this.loadState.show())
                 .jstree({
                     core: {
                         data: data,
                         themes: { dots: false },
+                        animation: withAnimation ? 200 : 0,
                     },
                     search: {
-                        show_only_matches: true,
+                        show_only_matches: this.options.searchShowOnlyMatches,
+                        close_opened_onclear: this.options.searchCloseOpenedOnClear,
+                        search_callback: (str, node) => {
+                            const query = str.toLowerCase();
+                            return (
+                                node.id.toLowerCase().includes(query) ||
+                                node.data?.size?.toLowerCase().includes(query) ||
+                                node.data?.modified_at?.toLowerCase().includes(query)
+                            );
+                        },
                     },
                     contextmenu: {
                         items: this._getContextMenuItems,

@@ -18,7 +18,6 @@ import ckanext.unfold.exception as unf_exception
 import ckanext.unfold.types as unf_types
 
 DEFAULT_DATE_FORMAT = "%d/%m/%Y - %H:%M"
-DEFAULT_TIMEOUT = 60  # seconds
 log = logging.getLogger(__name__)
 
 
@@ -106,15 +105,15 @@ def get_format_from_name(name: str) -> str:
 
 def printable_file_size(size_bytes: int) -> str:
     if size_bytes == 0:
-        return "0 bytes"
-    size_name = ("bytes", "KB", "MB", "GB", "TB")
+        return "0 B"
+    size_name = ("B", "KB", "MB", "GB", "TB")
     i = int(math.floor(math.log(size_bytes, 1024)))
     p = math.pow(1024, i)
     s = round(float(size_bytes) / p, 1)
     return f"{s} {size_name[i]}"
 
 
-class ArchiveStructureStorage:
+class UnfoldCacheManager:
     """Singleton storage for archive structures in Redis."""
 
     _instance = None
@@ -187,7 +186,7 @@ def get_archive_tree(
         return []
 
     cache_enabled = unf_config.is_cache_enabled()
-    cached_tree = ArchiveStructureStorage.get(resource["id"])
+    cached_tree = UnfoldCacheManager.get(resource["id"])
 
     if cache_enabled and cached_tree:
         return cached_tree
@@ -199,7 +198,7 @@ def get_archive_tree(
     archive_tree = adapter_instance.build_archive_tree()
 
     if cache_enabled:
-        ArchiveStructureStorage.save(archive_tree, resource["id"])
+        UnfoldCacheManager.save(archive_tree, resource["id"])
 
     return archive_tree
 
