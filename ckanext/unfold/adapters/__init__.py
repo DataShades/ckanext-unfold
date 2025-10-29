@@ -1,21 +1,28 @@
-from functools import partial
+from ckanext.unfold import types as unf_types
+from ckanext.unfold.adapters import _7z, ar, rar, rpm, tar, zip
+from ckanext.unfold.adapters.base import BaseAdapter
+from ckanext.unfold.types import Registry
 
-from . import _7z, ar, rar, rpm, tar, zip
-
-ADAPTERS = {
-    "rar": rar.build_directory_tree,
-    "cbr": rar.build_directory_tree,
-    "7z": _7z.build_directory_tree,
-    "zip": zip.build_directory_tree,
-    "zipx": zip.build_directory_tree,
-    "jar": zip.build_directory_tree,
-    "tar": tar.build_directory_tree,
-    "tar.gz": partial(tar.build_directory_tree, compression="gz"),
-    "tar.xz": partial(tar.build_directory_tree, compression="xz"),
-    "tar.bz2": partial(tar.build_directory_tree, compression="bz2"),
-    "rpm": rpm.build_directory_tree,
-    "deb": ar.build_directory_tree,
-    "ar": ar.build_directory_tree,
-    "a": ar.build_directory_tree,
-    "lib": ar.build_directory_tree,
+ADAPTERS: dict[str, type[BaseAdapter]] = {
+    "rar": rar.RarAdapter,
+    "cbr": rar.RarAdapter,
+    "7z": _7z.SevenZipAdapter,
+    "zip": zip.ZipAdapter,
+    "zipx": zip.ZipAdapter,
+    "jar": zip.ZipAdapter,
+    "tar": tar.TarAdapter,
+    "tar.gz": tar.TarGzAdapter,
+    "tar.xz": tar.TarXzAdapter,
+    "tar.bz2": tar.TarBz2Adapter,
+    "rpm": rpm.RpmAdapter,
+    "deb": ar.ArAdapter,
+    "ar": ar.ArAdapter,
+    "a": ar.ArAdapter,
+    "lib": ar.ArAdapter,
 }
+
+adapter_registry: unf_types.Registry[str, type[BaseAdapter]] = Registry(
+    ADAPTERS
+)
+
+__all__ = ["adapter_registry", "BaseAdapter", "ADAPTERS", "Registry"]

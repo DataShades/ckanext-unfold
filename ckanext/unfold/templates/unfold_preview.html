@@ -4,22 +4,43 @@
             <label class="d-none" for="field-sitewide-search">{{ _('Search') }}</label>
             <input id="jstree-search" class="form-control" type="text" name="jstree-search"
                 placeholder="{{ _('Search') }}" aria-label="{{ _('Search') }}" />
-            <button class="btn search-icon" type="submit" aria-label="{{ _('Search icon') }}"><i
-                    class="fa fa-search"></i></button>
         </div>
 
-        <div class="jstree-search--clear">
-            <button class="btn btn-primary" id="jstree-search-clear">
-                <i class="fa fa-close"></i>
-                {{ _("Clear") }}
-            </button>
+        <button class="btn btn-sm" type="submit" aria-label="{{ _('Search icon') }}"><i
+                class="fa fa-search"></i>
+        </button>
+
+        <button class="btn btn-sm" id="jstree-search-clear" title="{{ _('Clear search') }}" aria-label="{{ _('Clear search') }}">
+            <i class="fa fa-close"></i>
+        </button>
+
+        <button class="btn btn-sm" id="jstree-expand-all" title="{{ _('Expand all folders') }}" aria-label="{{ _('Expand all folders') }}">
+            <i class="fa fa-folder-open"></i>
+        </button>
+        <button class="btn btn-sm" id="jstree-collapse-all" title="{{ _('Collapse all folders') }}" aria-label="{{ _('Collapse all folders') }}">
+            <i class="fa fa-folder"></i>
+        </button>
+
+        <div class="unfold-load-state btn btn-sm">
+            <img src="{{ h.url_for_static('/spinner.gif') }}" width="20">
+        </div>
+    </div>
+
+    <div class="pseudo-table-header">
+        <div class="unf-cell unf-cell-name">
+            {{ _("Name") }}
+        </div>
+        <div class="unf-cell unf-cell-size">
+            {{ _("Size") }}
+        </div>
+        <div class="unf-cell unf-cell-modified-at">
+            {{ _("Data Modified") }}
         </div>
     </div>
 
     <div id="archive-tree" data-module="unfold-init-jstree" data-module-resource-id="{{ resource.id }}" data-module-resource-view-id="{{ resource_view.id }}" >
-        <div class="archive-tree--spinner">
-            <img src="{{ h.url_for_static('/spinner.gif') }}" width="20">
-            {{ _("The archive tree is currently being initialized. Please wait...") }}
+        <div class="archive-tree--spinner ms-4">
+            {{ _("Loading ...") }}
         </div>
     </div>
 

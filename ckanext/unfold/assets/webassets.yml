@@ -2,9 +2,8 @@ unfold-js:
   filter: rjsmin
   output: ckanext-unfold/%(version)s-unfold.js
   contents:
-    - js/unfold-init-jstree.js
     - vendor/jstree.min.js
-    - vendor/jstree-table.js
+    - js/unfold-init-jstree.js
   extra:
     preload:
       - base/main

@@ -4,38 +4,42 @@ ckan.module("unfold-init-jstree", function ($, _) {
         options: {
             data: null,
             resourceId: null,
-            resourceViewId: null
+            resourceViewId: null,
         },
 
         initialize: function () {
             $.proxyAll(this, /_/);
 
-            this.tree = $(this.el)
+            this.tree = $(this.el);
             this.errorBlock = $("#archive-tree-error");
+            this.loadState = $(".unfold-load-state");
 
-            $("#jstree-search").on("change", this._onSearch);
-            $("#jstree-search-clear").click(this._onClearSearch);
+            $("#jstree-search").on("change", (e) => this.tree.jstree("search", $(e.target).val()));
+            $("#jstree-search-clear").click(() => $("#jstree-search").val("").trigger("change"));
+            $("#jstree-expand-all").click(() => {
+                this.loadState.show();
+                this.tree.jstree("open_all");
+            });
+            $("#jstree-collapse-all").click(() => this.tree.jstree("close_all"));
 
+            document.addEventListener("keydown", this._onPageSearch);
+
+            // Fetch archive structure data after page load
             $.ajax({
                 url: this.sandbox.url("/api/action/get_archive_structure"),
-                data: { "id": this.options.resourceId, "view_id": this.options.resourceViewId },
-                success: this._onSuccessRequest
+                data: {
+                    id: this.options.resourceId,
+                    view_id: this.options.resourceViewId,
+                },
+                success: this._onSuccessRequest,
             });
-        },
-
-        _onSearch: function (e) {
-            this.tree.jstree("search", $(e.target).val())
-        },
-
-        _onClearSearch: function (e) {
-            $("#jstree-search").val("").trigger("change");
         },
 
         _onSuccessRequest: function (data) {
             if (data.result.error) {
                 this._displayErrorReason(data.result.error);
             } else {
-                this._initJsTree(data.result)
+                this._initJsTree(data.result);
             }
         },
 
@@ -46,29 +50,89 @@ ckan.module("unfold-init-jstree", function ($, _) {
         },
 
         _initJsTree: function (data) {
-            $(this.el).jstree({
-                core: {
-                    data: data,
-                    themes: { dots: false }
-                },
-                search: {
-                    show_only_matches: true,
-                },
-                table: {
-                    columnWidth: "200px",
-                    columns: [
-                        { width: 400, header: "Name" },
-                        { width: 100, header: "Size", value: "size", cellClass: "js-tree-col", wideCellClass: "js-tree-col" },
-                        { width: 100, header: "Type", value: "type", cellClass: "js-tree-col", wideCellClass: "js-tree-col" },
-                        { width: 100, header: "Format", value: "format", cellClass: "js-tree-col", wideCellClass: "js-tree-col" },
-                        { width: 200, header: "Modified at", value: "modified_at", cellClass: "js-tree-col", wideCellClass: "js-tree-col" }
-                    ],
-                    height: 700,
-                },
-                plugins: [
-                    "search", "table"
-                ]
-            });
-        }
+            this.tree = $(this.el)
+                .on("ready.jstree", () => {
+                    this.loadState.hide();
+                })
+                .on("loading.jstree", () => {
+                    this.loadState.show();
+                })
+                .on("open_all.jstree", () => {
+                    this.loadState.hide();
+                })
+                .jstree({
+                    core: {
+                        data: data,
+                        themes: { dots: false },
+                    },
+                    search: {
+                        show_only_matches: true,
+                    },
+                    contextmenu: {
+                        items: this._getContextMenuItems,
+                    },
+                    plugins: ["search", "wholerow", "contextmenu"],
+                });
+        },
+
+        _getContextMenuItems: function (node) {
+            const items = {};
+            const nodeHref = node.a_attr?.href || null;
+
+            if (nodeHref && nodeHref !== "#") {
+                items["openURL"] = {
+                    label: ckan.i18n._("Open URL"),
+                    action: () => {
+                        window.open(nodeHref, "_blank");
+                    },
+                };
+
+                items["copyURL"] = {
+                    label: ckan.i18n._("Copy URL"),
+                    action: () => {
+                        navigator.clipboard.writeText(nodeHref);
+                    },
+                };
+            }
+
+            if (node.children.length > 0) {
+                items["toggle"] = {
+                    label: node.state.opened ? ckan.i18n._("Collapse") : ckan.i18n._("Expand"),
+                    action: () => {
+                        console.log(node);
+
+                        if (node.state.opened) {
+                            this.tree.jstree("close_node", node);
+                        } else {
+                            this.tree.jstree("open_node", node);
+                        }
+                    },
+                };
+            }
+
+            if (!Object.keys(items).length) {
+                return false;
+            }
+
+            return items;
+        },
+
+        _onPageSearch: function (e) {
+            const isMac = navigator.userAgentData
+                ? navigator.userAgentData.platform === "macOS"
+                : /Mac/i.test(navigator.userAgent);
+            const isSearchShortcut = (isMac && e.metaKey && e.key === "f") || (!isMac && e.ctrlKey && e.key === "f");
+
+            if (isSearchShortcut) {
+                e.preventDefault();
+
+                const searchInput = document.querySelector("#jstree-search");
+
+                if (searchInput) {
+                    searchInput.focus();
+                    searchInput.select();
+                }
+            }
+        },
     };
 });

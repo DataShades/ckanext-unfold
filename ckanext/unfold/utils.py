@@ -4,21 +4,32 @@ import json
 import logging
 import math
 import pathlib
-from collections.abc import Callable
 from typing import Any
 
+import redis
+
+import ckan.plugins.toolkit as tk
 from ckan.lib.redis import connect_to_redis
 from ckan.lib.uploader import get_resource_uploader
 
 import ckanext.unfold.adapters as unf_adapters
 import ckanext.unfold.config as unf_config
 import ckanext.unfold.exception as unf_exception
-import ckanext.unfold.truncate as unf_truncate
 import ckanext.unfold.types as unf_types
 
 DEFAULT_DATE_FORMAT = "%d/%m/%Y - %H:%M"
 DEFAULT_TIMEOUT = 60  # seconds
 log = logging.getLogger(__name__)
+
+
+collect_adapters_signal = tk.signals.ckanext.signal(
+    "unfold:register_format_adapters",
+    "Collect adapters from subscribers",
+)
+get_adapter_for_resource_signal = tk.signals.ckanext.signal(
+    "unfold:get_adapter_for_resource",
+    "Get adapter for a given resource",
+)
 
 
 def get_icon_by_format(fmt: str) -> str:
@@ -103,100 +114,106 @@ def printable_file_size(size_bytes: int) -> str:
     return f"{s} {size_name[i]}"
 
 
-def save_archive_structure(nodes: list[unf_types.Node], resource_id: str) -> None:
-    """Save an archive structure to redis to."""
-    conn = connect_to_redis()
-    conn.set(
-        f"ckanext:unfold:tree:{resource_id}",
-        json.dumps([n.model_dump() for n in nodes]),
-    )
-    conn.close()
+class ArchiveStructureStorage:
+    """Singleton storage for archive structures in Redis."""
 
+    _instance = None
+    _conn: redis.Redis | None = None
+    _PREFIX = "ckanext:unfold:tree:"
 
-def get_archive_structure(resource_id: str) -> list[unf_types.Node] | None:
-    """Retrieve an archive structure from redis."""
-    conn = connect_to_redis()
-    data = conn.get(f"ckanext:unfold:tree:{resource_id}")
-    conn.close()
+    @classmethod
+    def _ensure_conn(cls) -> redis.Redis:
+        if cls._conn is None:
+            cls._conn = connect_to_redis()
 
-    return json.loads(data) if data else None  # type: ignore
+        return cls._conn
 
+    @classmethod
+    def _key(cls, resource_id: str) -> str:
+        return f"{cls._PREFIX}{resource_id}"
 
-def delete_archive_structure(resource_id: str) -> None:
-    """Delete an archive structure from redis.
+    @classmethod
+    def save(cls, nodes: list[unf_types.Node], resource_id: str) -> None:
+        """Save an archive structure to Redis."""
+        cls._conn = cls._ensure_conn()
 
-    Called on resource delete/update
-    """
-    conn = connect_to_redis()
-    conn.delete(f"ckanext:unfold:tree:{resource_id}")
-    conn.close()
+        data = json.dumps([n.model_dump() for n in nodes])
+        cls._conn.set(cls._key(resource_id), data)
+
+    @classmethod
+    def get(cls, resource_id: str) -> list[unf_types.Node]:
+        """Retrieve an archive structure from Redis."""
+        cls._conn = cls._ensure_conn()
+
+        data: bytes = cls._conn.get(cls._key(resource_id))  # type: ignore
+
+        if not data:
+            return []
+
+        raw = json.loads(data)
+        return [unf_types.Node(**n) for n in raw]
+
+    @classmethod
+    def delete(cls, resource_id: str) -> None:
+        """Delete an archive structure from Redis."""
+        cls._conn.delete(cls._key(resource_id))  # type: ignore
+
+    @classmethod
+    def close(cls) -> None:
+        """Close the shared Redis connection."""
+        if not cls._conn:
+            return
+
+        cls._conn.close()
+        cls._conn = None
 
 
 def get_archive_tree(
     resource: dict[str, Any], resource_view: dict[str, Any]
 ) -> list[unf_types.Node]:
     remote = False
+    url_type = resource.get("url_type")
 
-    if resource.get("url_type") == "upload":
+    if url_type == "upload":
         upload = get_resource_uploader(resource)
         filepath = upload.get_path(resource["id"])
-    else:
+    elif url_type == "url":
         if not resource.get("url"):
             return []
 
         filepath = resource["url"]
         remote = True
-
-    # Check size limit before processing
-    archive_size = resource.get("size")
-    if archive_size and isinstance(archive_size, str):
-        try:
-            archive_size = int(archive_size)
-        except (ValueError, TypeError):
-            archive_size = None
-
-    max_size = unf_config.get_max_size()
-
-    if not check_size_limit(archive_size, max_size):
-        file_size = printable_file_size(archive_size) if archive_size else "unknown"
-        max_size = printable_file_size(max_size)
-        log.warning(
-            "Skipping archive processing: size %s "
-            "exceeds maximum allowed size of %s "
-            "for resource %s",
-            file_size,
-            max_size,
-            resource.get("id", "unknown"),
-        )
+    else:
         return []
 
     cache_enabled = unf_config.is_cache_enabled()
-    cached_tree = get_archive_structure(resource["id"])
+    cached_tree = ArchiveStructureStorage.get(resource["id"])
 
     if cache_enabled and cached_tree:
         return cached_tree
 
-    adapter = get_adapter_for_format(resource["format"].lower())
-    tree = adapter(filepath, resource_view, remote=remote)
+    adapter_instance = get_adapter_for_resource(resource)(
+        filepath, resource, resource_view, remote
+    )
 
-    # Apply truncation limits before saving
-    truncated_tree = unf_truncate.truncate_nodes(tree)
+    archive_tree = adapter_instance.build_archive_tree()
 
     if cache_enabled:
-        save_archive_structure(truncated_tree, resource["id"])
+        ArchiveStructureStorage.save(archive_tree, resource["id"])
 
-    return truncated_tree
+    return archive_tree
 
 
-def get_adapter_for_format(res_format: str) -> Callable[..., list[unf_types.Node]]:
-    if res_format not in unf_adapters.ADAPTERS:
+def get_adapter_for_resource(
+    resource: dict[str, Any],
+) -> type[unf_adapters.BaseAdapter]:
+    res_format = resource["format"].lower()
+
+    for _, adapter in get_adapter_for_resource_signal.send(resource):
+        if adapter:
+            return adapter
+
+    if res_format not in unf_adapters.adapter_registry:
         raise unf_exception.UnfoldError(f"No adapter for `{res_format}` archives")
 
-    return unf_adapters.ADAPTERS[res_format]
-
-
-def check_size_limit(archive_size: int | None, max_size: int | None) -> bool:
-    if max_size is None or archive_size is None:
-        return True
-
-    return archive_size < max_size
+    return unf_adapters.adapter_registry[res_format]

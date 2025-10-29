@@ -30,7 +30,24 @@ def test_build_tree(file_format: str, num_nodes: int):
     file_path = os.path.join(
         os.path.dirname(__file__), f"data/test_archive.{file_format}"
     )
-    tree = utils.get_adapter_for_format(file_format)(file_path, {})
+    adapter_instance = utils.get_adapter_for_resource({"format": file_format})(
+        file_path, {}, {}, remote=False
+    )
+    tree = adapter_instance.build_archive_tree()
 
     assert len(tree) == num_nodes
     assert isinstance(tree[0], types.Node)
+
+
+def test_build_complex_tree():
+    adapter_instance = utils.get_adapter_for_resource({"format": "zip"})(
+        os.path.join(os.path.dirname(__file__), "data/test_complex_nested.zip"),
+        {},
+        {},
+        remote=False,
+    )
+    tree = adapter_instance.build_archive_tree()
+
+    assert len(tree) == 15004
+    root_folders = [node for node in tree if node.parent == "#"]
+    assert len(root_folders) == 4

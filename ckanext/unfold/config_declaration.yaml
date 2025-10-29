@@ -2,29 +2,11 @@ version: 1
 groups:
   - annotation: Unfold settings
     options:
-      - key: ckanext.unfold.max_size
+      - key: ckanext.unfold.max_file_size
         type: int
         default: 52428800   # 50MB in bytes
         validators: is_positive_integer
         description: Maximum size of archives to process, in bytes. Prevents processing very large files.
-
-      - key: ckanext.unfold.max_depth
-        type: int
-        default: 5
-        validators: is_positive_integer
-        description: Maximum depth of archive structure to display. Prevents deep nesting.
-
-      - key: ckanext.unfold.max_nested_count
-        type: int
-        default: 20
-        validators: is_positive_integer
-        description: Maximum number of items to show per folder. Prevents overwhelming folder contents.
-
-      - key: ckanext.unfold.max_total
-        type: int
-        default: 200
-        validators: is_positive_integer
-        description: Maximum total number of items to display from archive. Limits overall tree size.
 
       - key: ckanext.unfold.formats
         type: list

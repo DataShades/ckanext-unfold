@@ -10,85 +10,84 @@ from rpmfile import RPMFile, RPMInfo
 import ckanext.unfold.exception as unf_exception
 import ckanext.unfold.types as unf_types
 import ckanext.unfold.utils as unf_utils
+from ckanext.unfold.adapters.base import BaseAdapter
 
 log = logging.getLogger(__name__)
 
 
-def build_directory_tree(
-    filepath: str, resource_view: dict[str, Any], remote: bool = False
-) -> list[unf_types.Node]:
-    try:
-        if remote:
-            file_list = get_rpmlist_from_url(filepath)
-        else:
-            with RPMFile(filepath, "rb") as archive:
-                file_list: list[RPMInfo] = archive.getmembers()
-    except (NotImplementedError, KeyError) as e:
-        raise unf_exception.UnfoldError(f"Error openning archive: {e}") from e
-    except requests.RequestException as e:
-        raise unf_exception.UnfoldError(f"Error fetching remote archive: {e}") from e
+class RpmAdapter(BaseAdapter):
+    def get_node_list(self) -> list[unf_types.Node]:
+        try:
+            if self.remote:
+                file_list = self.get_file_list_from_url(self.filepath)
+            else:
+                with RPMFile(self.filepath, "rb") as archive:
+                    file_list: list[RPMInfo] = archive.getmembers()
+        except (NotImplementedError, KeyError) as e:
+            raise unf_exception.UnfoldError(f"Error openning archive: {e}") from e
+        except requests.RequestException as e:
+            raise unf_exception.UnfoldError(
+                f"Error fetching remote archive: {e}"
+            ) from e
 
-    nodes = [_build_node(entry) for entry in file_list]
+        nodes = [self._build_node(entry) for entry in file_list]
 
-    return _add_folder_nodes(nodes)
+        return self._add_folder_nodes(nodes)
 
+    def _build_node(self, entry: RPMInfo) -> unf_types.Node:
+        parts = [p for p in entry.name.split("/") if p]
+        name = unf_utils.name_from_path(entry.name)
+        fmt = "folder" if entry.isdir else unf_utils.get_format_from_name(name)
 
-def _build_node(entry: RPMInfo) -> unf_types.Node:
-    parts = [p for p in entry.name.split("/") if p]
-    name = unf_utils.name_from_path(entry.name)
-    fmt = "folder" if entry.isdir else unf_utils.get_format_from_name(name)
+        return unf_types.Node(
+            id=entry.name.rstrip("/") or "",
+            text=unf_utils.name_from_path(entry.name),
+            icon="fa fa-folder" if entry.isdir else unf_utils.get_icon_by_format(fmt),
+            parent="/".join(parts[:-1]) if parts[:-1] else "#",
+            data=self._prepare_table_data(entry),
+        )
 
-    return unf_types.Node(
-        id=entry.name.rstrip("/") or "",
-        text=unf_utils.name_from_path(entry.name),
-        icon="fa fa-folder" if entry.isdir else unf_utils.get_icon_by_format(fmt),
-        parent="/".join(parts[:-1]) if parts[:-1] else "#",
-        data=_prepare_table_data(entry),
-    )
+    def _prepare_table_data(self, entry: RPMInfo) -> dict[str, Any]:
+        name = unf_utils.name_from_path(entry.name)
+        fmt = "" if entry.isdir else unf_utils.get_format_from_name(name)
 
+        return {
+            "size": unf_utils.printable_file_size(entry.size) if entry.size else "",
+            "type": "folder" if entry.isdir else "file",
+            "format": fmt,
+            "modified_at": "--",  # rpmfile doesn't provide this info
+        }
 
-def _prepare_table_data(entry: RPMInfo) -> dict[str, Any]:
-    name = unf_utils.name_from_path(entry.name)
-    fmt = "" if entry.isdir else unf_utils.get_format_from_name(name)
+    def get_file_list_from_url(self, url: str) -> list[RPMInfo]:
+        """Download an archive and fetch a file list.
 
-    return {
-        "size": unf_utils.printable_file_size(entry.size) if entry.size else "",
-        "type": "folder" if entry.isdir else "file",
-        "format": fmt,
-        "modified_at": "--",  # rpmfile doesn't provide this info
-    }
+        Tar file doesn't allow us to download it partially
+        and fetch only file list, because the information
+        about each file is stored at the beggining of the file
+        """
+        content = self.make_request(url)
 
+        return RPMFile(fileobj=BytesIO(content)).getmembers()
 
-def get_rpmlist_from_url(url: str) -> list[RPMInfo]:
-    """Download an archive and fetch a file list.
+    def _add_folder_nodes(self, nodes: list[unf_types.Node]) -> list[unf_types.Node]:
+        folder_nodes: dict[str, unf_types.Node] = {}
 
-    Tar file doesn't allow us to download it partially
-    and fetch only file list, because the information
-    about each file is stored at the beggining of the file
-    """
-    resp = requests.get(url, timeout=unf_utils.DEFAULT_TIMEOUT)
+        for node in nodes:
+            if node.parent == "#":
+                continue
 
-    return RPMFile(fileobj=BytesIO(resp.content)).getmembers()
+            self._build_parent_node(node.parent, folder_nodes)
 
+        return nodes + list(folder_nodes.values())
 
-def _add_folder_nodes(nodes: list[unf_types.Node]) -> list[unf_types.Node]:
-    folder_nodes: dict[str, unf_types.Node] = {}
+    def _build_parent_node(
+        self, parent: str, nodes: dict[str, unf_types.Node]
+    ) -> dict[str, unf_types.Node]:
+        parts = [p for p in parent.split("/") if p]
 
-    for node in nodes:
-        if node.parent == "#":
-            continue
+        if not parts:
+            return nodes
 
-        _build_parent_node(node.parent, folder_nodes)
-
-    return nodes + list(folder_nodes.values())
-
-
-def _build_parent_node(
-    parent: str, nodes: dict[str, unf_types.Node]
-) -> dict[str, unf_types.Node]:
-    parts = [p for p in parent.split("/") if p]
-
-    if parts:
         bottom = parent == "."
 
         nodes.setdefault(
@@ -98,11 +97,16 @@ def _build_parent_node(
                 text=parent,
                 icon="fa fa-folder",
                 parent="#" if bottom else "/".join(parts[:-1]),
-                data={"size": "", "type": "folder", "format": "", "modified_at": "--"},
+                data={
+                    "size": "",
+                    "type": "folder",
+                    "format": "",
+                    "modified_at": "--",
+                },
             ),
         )
 
         if not bottom:
-            _build_parent_node("/".join(parts[:-1]), nodes)
+            self._build_parent_node("/".join(parts[:-1]), nodes)
 
-    return nodes
+        return nodes
