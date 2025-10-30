@@ -5,7 +5,7 @@
 Enhance your CKAN experience with our extension that enables seamless previews of various archive formats, ensuring easy access and efficient data management.
 
 ![Plugin presentation](https://raw.githubusercontent.com/DataShades/ckanext-unfold/master/doc/view.png)
-![alt text](image.png)
+
 Features:
 - Represents an archive as a file tree
 - Supports the following archive formats: ZIP, ZIPX, JAR, RAR, CBR, 7Z, TAR, TAR.XZ, TAR.GZ, TAR.BZ2, DEB, RPM, A, AR, LIB
