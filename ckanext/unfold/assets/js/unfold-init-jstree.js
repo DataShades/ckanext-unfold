@@ -7,7 +7,8 @@ ckan.module("unfold-init-jstree", function ($, _) {
             resourceViewId: null,
             animationThreshold: 1000,
             searchShowOnlyMatches: true,
-            searchCloseOpenedOnClear: false
+            searchCloseOpenedOnClear: false,
+            enableSort: true,
         },
 
         initialize: function () {
@@ -51,6 +52,11 @@ ckan.module("unfold-init-jstree", function ($, _) {
 
         _initJsTree: function (data) {
             let withAnimation = data.length < this.options.animationThreshold;
+            let plugins = ["search", "wholerow", "contextmenu"];
+
+            if (this.options.enableSort) {
+                plugins.push("sort");
+            }
 
             this.tree = $(this.el)
                 .on("ready.jstree", () => this.loadState.hide())
@@ -76,7 +82,7 @@ ckan.module("unfold-init-jstree", function ($, _) {
                     contextmenu: {
                         items: this._getContextMenuItems,
                     },
-                    plugins: ["search", "wholerow", "contextmenu"],
+                    plugins: plugins,
                 });
         },
 
@@ -104,8 +110,6 @@ ckan.module("unfold-init-jstree", function ($, _) {
                 items["toggle"] = {
                     label: node.state.opened ? ckan.i18n._("Collapse") : ckan.i18n._("Expand"),
                     action: () => {
-                        console.log(node);
-
                         if (node.state.opened) {
                             this.tree.jstree("close_node", node);
                         } else {

@@ -59,8 +59,6 @@ class SevenZipAdapter(BaseAdapter):
         )
 
     def _prepare_table_data(self, entry: FileInfo) -> dict[str, Any]:
-        name = unf_utils.name_from_path(entry.filename)
-        fmt = "" if entry.is_directory else unf_utils.get_format_from_name(name)
         modified_at = tk.h.render_datetime(
             entry.creationtime, date_format=unf_utils.DEFAULT_DATE_FORMAT
         )
@@ -71,9 +69,7 @@ class SevenZipAdapter(BaseAdapter):
                 if entry.compressed
                 else ""
             ),
-            "type": "folder" if entry.is_directory else "file",
-            "format": fmt,
-            "modified_at": modified_at or "--",
+            "modified_at": modified_at or "",
         }
 
     def get_file_list_from_url(self, url: str) -> list[FileInfo]:

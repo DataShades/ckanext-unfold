@@ -48,14 +48,9 @@ class RpmAdapter(BaseAdapter):
         )
 
     def _prepare_table_data(self, entry: RPMInfo) -> dict[str, Any]:
-        name = unf_utils.name_from_path(entry.name)
-        fmt = "" if entry.isdir else unf_utils.get_format_from_name(name)
-
         return {
             "size": unf_utils.printable_file_size(entry.size) if entry.size else "",
-            "type": "folder" if entry.isdir else "file",
-            "format": fmt,
-            "modified_at": "--",  # rpmfile doesn't provide this info
+            "modified_at": "",  # rpmfile doesn't provide this info
         }
 
     def get_file_list_from_url(self, url: str) -> list[RPMInfo]:

@@ -10,7 +10,6 @@ import redis
 
 import ckan.plugins.toolkit as tk
 from ckan.lib.redis import connect_to_redis
-from ckan.lib.uploader import get_resource_uploader
 
 import ckanext.unfold.adapters as unf_adapters
 import ckanext.unfold.config as unf_config
@@ -18,6 +17,7 @@ import ckanext.unfold.exception as unf_exception
 import ckanext.unfold.types as unf_types
 
 DEFAULT_DATE_FORMAT = "%d/%m/%Y - %H:%M"
+REDIS_CACHE_TTL = 3600 * 24  # 24 hour
 log = logging.getLogger(__name__)
 
 
@@ -137,7 +137,7 @@ class UnfoldCacheManager:
         cls._conn = cls._ensure_conn()
 
         data = json.dumps([n.model_dump() for n in nodes])
-        cls._conn.set(cls._key(resource_id), data)
+        cls._conn.setex(cls._key(resource_id), REDIS_CACHE_TTL, data)
 
     @classmethod
     def get(cls, resource_id: str) -> list[unf_types.Node]:
@@ -155,6 +155,7 @@ class UnfoldCacheManager:
     @classmethod
     def delete(cls, resource_id: str) -> None:
         """Delete an archive structure from Redis."""
+        cls._conn = cls._ensure_conn()
         cls._conn.delete(cls._key(resource_id))  # type: ignore
 
     @classmethod
@@ -170,30 +171,13 @@ class UnfoldCacheManager:
 def get_archive_tree(
     resource: dict[str, Any], resource_view: dict[str, Any]
 ) -> list[unf_types.Node]:
-    remote = False
-    url_type = resource.get("url_type")
-
-    if url_type == "upload":
-        upload = get_resource_uploader(resource)
-        filepath = upload.get_path(resource["id"])
-    elif url_type == "url":
-        if not resource.get("url"):
-            return []
-
-        filepath = resource["url"]
-        remote = True
-    else:
-        return []
-
     cache_enabled = unf_config.is_cache_enabled()
     cached_tree = UnfoldCacheManager.get(resource["id"])
 
     if cache_enabled and cached_tree:
         return cached_tree
 
-    adapter_instance = get_adapter_for_resource(resource)(
-        filepath, resource, resource_view, remote
-    )
+    adapter_instance = get_adapter_for_resource(resource)(resource, resource_view)
 
     archive_tree = adapter_instance.build_archive_tree()
 
@@ -209,8 +193,13 @@ def get_adapter_for_resource(
     res_format = resource["format"].lower()
 
     for _, adapter in get_adapter_for_resource_signal.send(resource):
-        if adapter:
-            return adapter
+        if adapter is None:
+            continue
+
+        if adapter is False:
+            break
+
+        return adapter
 
     if res_format not in unf_adapters.adapter_registry:
         raise unf_exception.UnfoldError(f"No adapter for `{res_format}` archives")

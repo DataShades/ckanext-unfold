@@ -52,7 +52,6 @@ class RarAdapter(BaseAdapter):
 
         return [self._build_node(entry) for entry in file_list]
 
-
     def get_file_list_from_url(self, url: str) -> list[RarInfo]:
         """Download an archive and fetch a file list.
 
@@ -83,17 +82,12 @@ class RarAdapter(BaseAdapter):
         )
 
     def _prepare_table_data(self, entry: RarInfo) -> dict[str, Any]:
-        name = unf_utils.name_from_path(entry.filename)
-        fmt = "" if entry.isdir() else unf_utils.get_format_from_name(name)
-
         return {
             "size": (
                 unf_utils.printable_file_size(entry.compress_size)
                 if entry.compress_size
                 else ""
             ),
-            "type": "folder" if entry.isdir() else "file",
-            "format": fmt,
             "modified_at": self._fetch_mtime(entry),
         }
 
@@ -108,4 +102,4 @@ class RarAdapter(BaseAdapter):
                 date_format=unf_utils.DEFAULT_DATE_FORMAT,
             )
 
-        return modified_at or "--"
+        return modified_at or ""

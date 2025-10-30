@@ -7,7 +7,6 @@ import ckan.plugins.toolkit as tk
 from ckan import types
 from ckan.common import CKANConfig
 
-import ckanext.unfold.config as unf_config
 import ckanext.unfold.utils as unf_utils
 from ckanext.unfold.adapters import adapter_registry
 from ckanext.unfold.logic.schema import get_preview_schema
@@ -52,10 +51,7 @@ class UnfoldPlugin(p.SingletonPlugin):
         }
 
     def can_view(self, data_dict: types.DataDict) -> bool:
-        return (
-            data_dict["resource"].get("format", "").lower()
-            in unf_config.get_allowed_formats()
-        )
+        return unf_utils.get_adapter_for_resource(data_dict["resource"]) is not None
 
     def view_template(self, context: types.Context, data_dict: types.DataDict) -> str:
         return "unfold_preview.html"
@@ -74,7 +70,7 @@ class UnfoldPlugin(p.SingletonPlugin):
         if resource.get("url_type") == "url" and current["url"] == resource["url"]:
             return
 
-        unf_utils.delete_archive_structure(resource["id"])
+        unf_utils.UnfoldCacheManager.delete(resource["id"])
 
     def before_resource_delete(
         self,
@@ -82,4 +78,4 @@ class UnfoldPlugin(p.SingletonPlugin):
         resource: dict[str, Any],
         resources: list[dict[str, Any]],
     ) -> None:
-        unf_utils.delete_archive_structure(resource["id"])
+        unf_utils.UnfoldCacheManager.delete(resource["id"])

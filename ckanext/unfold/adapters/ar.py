@@ -47,13 +47,9 @@ class ArAdapter(BaseAdapter):
         )
 
     def _prepare_table_data(self, entry: ArPath) -> dict[str, Any]:
-        name = unf_utils.name_from_path(entry.name)
-
         return {
             "size": (unf_utils.printable_file_size(entry.size) if entry.size else ""),
-            "type": "file",
-            "format": unf_utils.get_format_from_name(name),
-            "modified_at": "--",
+            "modified_at": "",
         }
 
     def get_file_list_from_url(self, url: str) -> list[ArPath]:

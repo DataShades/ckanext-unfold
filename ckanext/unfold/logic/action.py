@@ -4,12 +4,11 @@ from ckan import types
 from ckan.logic import validate
 from ckan.plugins import toolkit as tk
 
+import ckanext.unfold.config as unf_config
 import ckanext.unfold.exception as unf_exception
 import ckanext.unfold.logic.schema as unf_schema
 import ckanext.unfold.types as unf_types
 import ckanext.unfold.utils as unf_utils
-
-EXPAND_NODES_THRESHOLD = 2000
 
 
 @tk.side_effect_free
@@ -28,7 +27,7 @@ def get_archive_structure(
     except unf_exception.UnfoldError as e:
         return {"error": str(e)}
 
-    close_folders = len(nodes) > EXPAND_NODES_THRESHOLD
+    close_folders = len(nodes) > unf_config.get_expand_nodes_threshold()
     return [serialize_node(n, close_folders) for n in nodes]
 
 
@@ -45,9 +44,9 @@ def serialize_node(node: unf_types.Node, close_folders: bool) -> dict[str, Any]:
             data["text"] += f' <span class="unfold-node-size">{size}</span>'
 
         if modified_at:
-            data[
-                "text"
-            ] += f' <span class="unfold-node-modified-at">{modified_at}</span>'
+            data["text"] += (
+                f' <span class="unfold-node-modified-at">{modified_at}</span>'
+            )
 
         data["text"] += "</span>"
 

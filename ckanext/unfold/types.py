@@ -16,7 +16,7 @@ class Node(BaseModel):
     parent: str
     state: dict[str, bool] = Field(default={"opened": False})
     data: dict[str, Any] = Field(default_factory=dict)
-    li_attr : dict[str, str] | None = None
+    li_attr: dict[str, str] | None = None
     a_attr: dict[str, str] | None = None
     children: bool = False
 
