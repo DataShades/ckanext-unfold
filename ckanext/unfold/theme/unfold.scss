@@ -12,18 +12,14 @@ $image-path: "../../images";
         position: relative;
         flex-basis: 350px;
         height: $height;
-
-        .search-icon {
-            height: $height;
-            display: flex;
-            position: absolute;
-            right: 0;
-        }
-
     }
 }
 
 .jstree-default {
+    .jstree-search {
+        font-style: normal !important;
+    }
+
     &>.jstree-no-dots {
 
         .jstree-open,
@@ -57,7 +53,7 @@ $image-path: "../../images";
             }
         }
 
-        .jstree-leaf > .jstree-ocl {
+        .jstree-leaf>.jstree-ocl {
             &:before {
                 display: none;
             }
@@ -77,24 +73,115 @@ $image-path: "../../images";
     }
 }
 
-.jstree-table-header:last-of-type {
-    .jstree-table-separator {
-        display: none;
-    }
-}
+// .jstree-default .jstree-wholerow.jstree-wholerow-clicked {
+//     background: var(--bs-cyan);
+// }
 
-.jstree-table-wrapper {
-
-    .jstree-table-headerwrapper,
-    .jstree-table-midwrapper {
-        width: -webkit-fill-available;
-        width: -moz-available;
-        display: table;
-    }
+#archive-tree {
+    margin-bottom: 1rem;
+    height: 700px;
+    overflow-y: scroll;
 }
 
 #archive-tree-error {
     padding: 10px;
     border: 1px solid #ced4da;
     border-radius: 0.25rem;
+}
+
+.jstree-anchor {
+    display: inline-flex !important;
+    width: 97% !important;
+
+    .unfold-node-metadata {
+        margin-left: auto;
+
+        .unfold-node-size {
+            margin-right: 1rem;
+        }
+    }
+}
+
+.pseudo-table-header {
+    display: flex;
+    font-weight: bold;
+    padding: 0.25rem 0.75rem;
+    border-bottom: 1px solid #ced4da;
+    margin-bottom: 0.5rem;
+
+    .unf-cell-size {
+        margin-left: auto;
+        // margin-right: 1.5rem;
+        min-width: 90px;
+    }
+
+    .unf-cell-modified-at {
+        // margin-right: 1.5rem;
+        min-width: 160px;
+    }
+
+    @media (min-width: 768px) {
+        // .unf-cell-size {
+        //     margin-left: auto;
+        //     margin-right: 3rem;
+        // }
+
+        // .unf-cell-modified-at {
+        //     margin-right: 2.5rem;
+        // }
+    }
+}
+
+@mixin context-ul {
+    background: var(--bs-white);
+    box-shadow: var(--bs-box-shadow);
+    border: 0;
+    border-radius: 3px;
+
+    li {
+        padding: 0;
+        border: 0;
+
+        a {
+            padding: 0 1.2rem;
+            border: 0;
+            background: transparent;
+
+            &:hover {
+                background-color: var(--bs-light);
+            }
+
+            i,
+            .vakata-contextmenu-sep {
+                display: none;
+            }
+
+            ins,
+            span {
+                display: none;
+                border: 0 !important
+            }
+        }
+    }
+}
+
+
+ul.vakata-context {
+    z-index: 5;
+    padding: 0;
+    min-width: 150px;
+    font-size: 1rem;
+
+    @include context-ul;
+
+    li ul {
+        @include context-ul;
+    }
+
+    .vakata-context-separator a {
+        margin: 0;
+        border: 0;
+        height: 2px;
+        background-color: #d0d5dd;
+    }
 }

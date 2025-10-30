@@ -2,36 +2,30 @@ version: 1
 groups:
   - annotation: Unfold settings
     options:
-      - key: ckanext.unfold.max_size
+      - key: ckanext.unfold.max_file_size
         type: int
         default: 52428800   # 50MB in bytes
         validators: is_positive_integer
-        description: Maximum size of archives to process, in bytes. Prevents processing very large files.
-
-      - key: ckanext.unfold.max_depth
-        type: int
-        default: 5
-        validators: is_positive_integer
-        description: Maximum depth of archive structure to display. Prevents deep nesting.
-
-      - key: ckanext.unfold.max_nested_count
-        type: int
-        default: 20
-        validators: is_positive_integer
-        description: Maximum number of items to show per folder. Prevents overwhelming folder contents.
-
-      - key: ckanext.unfold.max_total
-        type: int
-        default: 200
-        validators: is_positive_integer
-        description: Maximum total number of items to display from archive. Limits overall tree size.
-
-      - key: ckanext.unfold.formats
-        type: list
-        default: rar cbr 7z zip zipx jar tar tar.gz tar.xz tar.bz2 rpm deb ar a lib
-        description: Limits which file formats to handle.
+        description: |
+          Maximum size of archives to process, in bytes. Prevents processing very large files.
+          Generally, larger files take more time and resources to process. Especially, if
+          it's a remote file that needs to be downloaded first.
 
       - key: ckanext.unfold.enable_cache
         type: bool
         default: true
-        description: Enable caching to improve performance on repeated access.
+        description: |
+          Enable caching to improve performance on repeated access.
+          Caching can significantly speed up access to frequently used resources.
+          It is recommended to enable caching in production environments.
+          Note, that caching uses Redis as backend, therefore it takes some memory.
+
+      - key: ckanext.unfold.expand_nodes_threshold
+        type: int
+        default: 2000
+        validators: is_positive_integer
+        description: |
+          Threshold for automatically expanding nodes in the UI tree view.
+          If the number of nodes is less than or equal to this value, the tree will be fully expanded by default.
+          If the number of nodes exceeds this value, the tree will be collapsed by default.
+          Set to 0 to always collapse nodes. Expanding too many nodes may impact performance.
