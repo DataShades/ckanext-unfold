@@ -5,21 +5,23 @@
 Enhance your CKAN experience with our extension that enables seamless previews of various archive formats, ensuring easy access and efficient data management.
 
 ![Plugin presentation](https://raw.githubusercontent.com/DataShades/ckanext-unfold/master/doc/view.png)
-
+![alt text](image.png)
 Features:
 - Represents an archive as a file tree
 - Supports the following archive formats: ZIP, ZIPX, JAR, RAR, CBR, 7Z, TAR, TAR.XZ, TAR.GZ, TAR.BZ2, DEB, RPM, A, AR, LIB
 - Password-protected archives support for RAR format
 - Caching the file tree for faster access
 - File and folder search
-- Sorting by name, size, type, format and date
 - Support local and remote files
 - Support for large archives
 
-## Supported Versions
+## Requirements
 
 CKAN >= 2.10
+
 Python >= 3.11
+
+Redis (for caching)
 
 ## Configuration
 
@@ -110,7 +112,7 @@ class ExamplePlugin(p.SingletonPlugin):
 
     @classmethod
     def _register_format_adapters(cls, adapters: type[unf_adapters.Registry]) -> None:
-        adapters.update({"my.format": SourceCoopJSONAdapter})
+        adapters.update({"my.format": ExampleAdapter})
 ```
 
 Each adapter is responsible for handling a specific file format. The key in the registry dictionary is the file format, and the value is the adapter class.
@@ -119,15 +121,13 @@ Each adapter is responsible for handling a specific file format. The key in the 
 > 1. You can register multiple adapters for different file formats.
 > 2. This way, you can replace existing adapters by registering your own adapter for the same format.
 
-Using this example adapter will look like this:
+The result preview will look like this:
 
 ![alt text](https://raw.githubusercontent.com/DataShades/ckanext-unfold/master/doc/example_adapter.png)
 
 ## Getting a custom adapter for a resource
 
-You can provide a custom adapter for a specific resource by using the `unfold:get_adapter_for_resource` signal.
-
-Sometimes, you may want to provide a custom adapter for a specific resource based on some criteria, such as resource metadata or other attributes. You can do this by listening to the `unfold:get_adapter_for_resource` signal and returning your custom adapter when the criteria are met.
+Sometimes, you may want to provide a custom adapter for a specific resource based on some criteria, such as resource metadata or other attributes. Or you may want not to preview certain resources. You can do this by listening to the `unfold:get_adapter_for_resource` signal and returning your custom adapter when the criteria are met.
 
 ```py
 ...
