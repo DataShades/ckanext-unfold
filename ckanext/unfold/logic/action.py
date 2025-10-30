@@ -50,7 +50,7 @@ def serialize_node(node: unf_types.Node, close_folders: bool) -> dict[str, Any]:
 
         data["text"] += "</span>"
 
-    if node.data.get("type") == "folder":
-        data["state"] = {"opened": not close_folders}  # Optionally: don't start opened
+    # close nodes by default if above threshold
+    data["state"] = {"opened": not close_folders}
 
     return data
