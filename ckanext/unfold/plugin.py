@@ -51,7 +51,7 @@ class UnfoldPlugin(p.SingletonPlugin):
         }
 
     def can_view(self, data_dict: types.DataDict) -> bool:
-        return unf_utils.get_adapter_for_resource(data_dict["resource"]) is not None
+        return unf_utils.get_adapter_for_resource(data_dict["resource"], raise_error=False) is not None
 
     def view_template(self, context: types.Context, data_dict: types.DataDict) -> str:
         return "unfold_preview.html"

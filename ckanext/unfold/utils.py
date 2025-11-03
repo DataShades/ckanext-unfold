@@ -189,7 +189,8 @@ def get_archive_tree(
 
 def get_adapter_for_resource(
     resource: dict[str, Any],
-) -> type[unf_adapters.BaseAdapter]:
+    raise_error: bool = True
+) -> type[unf_adapters.BaseAdapter] | None:
     res_format = resource["format"].lower()
 
     for _, adapter in get_adapter_for_resource_signal.send(resource):
@@ -202,6 +203,8 @@ def get_adapter_for_resource(
         return adapter
 
     if res_format not in unf_adapters.adapter_registry:
-        raise unf_exception.UnfoldError(f"No adapter for `{res_format}` archives")
+        if raise_error:
+            raise unf_exception.UnfoldError(f"No adapter for `{res_format}` archives")
+        return None
 
     return unf_adapters.adapter_registry[res_format]
