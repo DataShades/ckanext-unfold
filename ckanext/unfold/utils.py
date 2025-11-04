@@ -204,7 +204,4 @@ def get_adapter_for_resource(
 
         return adapter
 
-    if res_format not in unf_adapters.adapter_registry:
-        return None
-
-    return unf_adapters.adapter_registry[res_format]
+    return unf_adapters.adapter_registry.get(res_format)
