@@ -177,8 +177,12 @@ def get_archive_tree(
     if cache_enabled and cached_tree:
         return cached_tree
 
-    adapter_instance = get_adapter_for_resource(resource)(resource, resource_view)
+    adapter_cls = get_adapter_for_resource(resource)
+    if adapter_cls is None:
+        res_format = resource["format"].lower()
+        raise unf_exception.UnfoldError(f"No adapter for `{res_format}` archives")
 
+    adapter_instance = adapter_cls(resource, resource_view)
     archive_tree = adapter_instance.build_archive_tree()
 
     if cache_enabled:
@@ -189,7 +193,7 @@ def get_archive_tree(
 
 def get_adapter_for_resource(
     resource: dict[str, Any],
-) -> type[unf_adapters.BaseAdapter]:
+) -> type[unf_adapters.BaseAdapter] | None:
     res_format = resource["format"].lower()
 
     for _, adapter in get_adapter_for_resource_signal.send(resource):
@@ -201,7 +205,4 @@ def get_adapter_for_resource(
 
         return adapter
 
-    if res_format not in unf_adapters.adapter_registry:
-        raise unf_exception.UnfoldError(f"No adapter for `{res_format}` archives")
-
-    return unf_adapters.adapter_registry[res_format]
+    return unf_adapters.adapter_registry.get(res_format)

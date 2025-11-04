@@ -46,7 +46,6 @@ class UnfoldPlugin(p.SingletonPlugin):
             "icon": "archive",
             "schema": get_preview_schema(),
             "iframed": False,
-            "always_available": True,
             "default_title": tk._("Unfold"),
         }
 
