@@ -177,11 +177,12 @@ def get_archive_tree(
     if cache_enabled and cached_tree:
         return cached_tree
 
-    adapter_instance = get_adapter_for_resource(resource)(resource, resource_view)
-    if adapter_instance is None:
+    adapter_cls = get_adapter_for_resource(resource)
+    if adapter_cls is None:
         res_format = resource["format"].lower()
         raise unf_exception.UnfoldError(f"No adapter for `{res_format}` archives")
 
+    adapter_instance = adapter_cls(resource, resource_view)
     archive_tree = adapter_instance.build_archive_tree()
 
     if cache_enabled:
