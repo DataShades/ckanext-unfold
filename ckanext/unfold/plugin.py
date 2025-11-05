@@ -8,6 +8,7 @@ from ckan import types
 from ckan.common import CKANConfig
 
 import ckanext.unfold.utils as unf_utils
+import ckanext.unfold.config as unf_config
 from ckanext.unfold.adapters import adapter_registry
 from ckanext.unfold.logic.schema import get_preview_schema
 
@@ -29,8 +30,6 @@ class UnfoldPlugin(p.SingletonPlugin):
     @classmethod
     def _register_adapters(cls):
         unf_utils.collect_adapters_signal.send(adapter_registry)
-        # for _ in unf_utils.collect_adapters_signal.send(adapter_registry):
-        #     pass
 
     # IConfigurer
     def update_config(self, config_: CKANConfig):
@@ -57,6 +56,13 @@ class UnfoldPlugin(p.SingletonPlugin):
 
     def form_template(self, context: types.Context, data_dict: types.DataDict) -> str:
         return "unfold_form.html"
+
+    def setup_template_variables(
+        self, context: types.Context, data_dict: types.DataDict
+    ) -> dict[str, Any]:
+        return {
+            "show_context_menu_default": unf_config.get_context_menu_default(),
+        }
 
     # IResourceController
 

@@ -38,7 +38,10 @@
         </div>
     </div>
 
-    <div id="archive-tree" data-module="unfold-init-jstree" data-module-resource-id="{{ resource.id }}" data-module-resource-view-id="{{ resource_view.id }}" >
+    <div id="archive-tree" data-module="unfold-init-jstree"
+        data-module-resource-id="{{ resource.id }}"
+        data-module-resource-view-id="{{ resource_view.id }}"
+        data-module-show-context-menu="{{ resource_view.show_context_menu | tojson }}">
         <div id="archive-tree--loader" class="ms-4">
             {{ _("Loading ...") }}
         </div>
