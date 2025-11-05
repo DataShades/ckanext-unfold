@@ -3,3 +3,11 @@
 {{ form.input('file_url', label=_('File URL'), placeholder=_('eg. http://example.com/test.zip  (if blank uses resource url)'), value=data.file_url, error=errors.file_url)}}
 
 {{ form.input('archive_pass', label=_("Password"), id='field-password', type="password", value=data.archive_pass, error=errors.archive_pass) }}
+
+{{ form.select(
+    'show_context_menu',
+    label=_('Show context menu'),
+    options=[{"value": true, "text": _("Yes")}, {"value": false, "text": _("No")}],
+    selected=(show_context_menu_default if data.show_context_menu is undefined else data.show_context_menu),
+    error=errors.show_context_menu)
+}}

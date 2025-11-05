@@ -7,10 +7,12 @@ def get_preview_schema(
     ignore_empty: types.Validator,
     unicode_safe: types.Validator,
     url_validator: types.Validator,
+    boolean_validator: types.Validator,
 ) -> types.Schema:
     return {
         "file_url": [ignore_empty, unicode_safe, url_validator],
         "archive_pass": [ignore_empty, unicode_safe],
+        "show_context_menu": [boolean_validator],
     }
 
 

@@ -29,3 +29,10 @@ groups:
           If the number of nodes is less than or equal to this value, the tree will be fully expanded by default.
           If the number of nodes exceeds this value, the tree will be collapsed by default.
           Set to 0 to always collapse nodes. Expanding too many nodes may impact performance.
+
+      - key: ckanext.unfold.show_context_menu_default
+        type: bool
+        default: true
+        description: |
+          If true, the right click context menu will be enabled by default in the tree view.
+          If false, if node contains a link, it can be opened by left clicking on it.
