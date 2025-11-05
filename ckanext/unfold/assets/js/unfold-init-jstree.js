@@ -9,6 +9,7 @@ ckan.module("unfold-init-jstree", function ($, _) {
             searchShowOnlyMatches: true,
             searchCloseOpenedOnClear: false,
             enableSort: true,
+            showContextMenu: true,
         },
 
         initialize: function () {
@@ -22,8 +23,6 @@ ckan.module("unfold-init-jstree", function ($, _) {
             $("#jstree-search-clear").click(() => $("#jstree-search").val("").trigger("change"));
             $("#jstree-expand-all").click(() => this.tree.jstree("open_all"));
             $("#jstree-collapse-all").click(() => this.tree.jstree("close_all"));
-
-            document.addEventListener("keydown", this._onPageSearch);
 
             // Fetch archive structure data after page load
             $.ajax({
@@ -52,7 +51,11 @@ ckan.module("unfold-init-jstree", function ($, _) {
 
         _initJsTree: function (data) {
             let withAnimation = data.length < this.options.animationThreshold;
-            let plugins = ["search", "wholerow", "contextmenu"];
+            let plugins = ["search", "wholerow"];
+
+            if (this.options.showContextMenu) {
+                plugins.push("contextmenu");
+            }
 
             if (this.options.enableSort) {
                 plugins.push("sort");
@@ -84,6 +87,17 @@ ckan.module("unfold-init-jstree", function ($, _) {
                     },
                     plugins: plugins,
                 });
+
+            if (!this.options.showContextMenu) {
+                this.tree.on("select_node.jstree", (_, data) => {
+                    const node = data.node;
+                    const nodeHref = node.a_attr?.href || null;
+
+                    if (nodeHref && nodeHref !== "#") {
+                        window.open(nodeHref, "_blank");
+                    }
+                });
+            }
         },
 
         _getContextMenuItems: function (node) {
@@ -124,24 +138,6 @@ ckan.module("unfold-init-jstree", function ($, _) {
             }
 
             return items;
-        },
-
-        _onPageSearch: function (e) {
-            const isMac = navigator.userAgentData
-                ? navigator.userAgentData.platform === "macOS"
-                : /Mac/i.test(navigator.userAgent);
-            const isSearchShortcut = (isMac && e.metaKey && e.key === "f") || (!isMac && e.ctrlKey && e.key === "f");
-
-            if (isSearchShortcut) {
-                e.preventDefault();
-
-                const searchInput = document.querySelector("#jstree-search");
-
-                if (searchInput) {
-                    searchInput.focus();
-                    searchInput.select();
-                }
-            }
-        },
+        }
     };
 });
