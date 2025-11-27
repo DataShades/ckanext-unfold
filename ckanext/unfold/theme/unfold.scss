@@ -73,10 +73,6 @@ $image-path: "../../images";
     }
 }
 
-// .jstree-default .jstree-wholerow.jstree-wholerow-clicked {
-//     background: var(--bs-cyan);
-// }
-
 #archive-tree {
     margin-bottom: 1rem;
     height: 700px;
@@ -111,24 +107,11 @@ $image-path: "../../images";
 
     .unf-cell-size {
         margin-left: auto;
-        // margin-right: 1.5rem;
         min-width: 90px;
     }
 
     .unf-cell-modified-at {
-        // margin-right: 1.5rem;
         min-width: 160px;
-    }
-
-    @media (min-width: 768px) {
-        // .unf-cell-size {
-        //     margin-left: auto;
-        //     margin-right: 3rem;
-        // }
-
-        // .unf-cell-modified-at {
-        //     margin-right: 2.5rem;
-        // }
     }
 }
 

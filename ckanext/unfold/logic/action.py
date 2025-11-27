@@ -28,10 +28,10 @@ def get_archive_structure(
         return {"error": str(e)}
 
     close_folders = len(nodes) > unf_config.get_expand_nodes_threshold()
-    return [serialize_node(n, close_folders) for n in nodes]
+    return [_serialize_node(n, close_folders) for n in nodes]
 
 
-def serialize_node(node: unf_types.Node, close_folders: bool) -> dict[str, Any]:
+def _serialize_node(node: unf_types.Node, close_folders: bool) -> dict[str, Any]:
     data = node.model_dump()
 
     size = node.data.get("size", "")
