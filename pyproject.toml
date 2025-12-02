@@ -4,11 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ckanext-unfold"
-<<<<<<< HEAD
 version = "2.1.4"
-=======
-version = "2.1.3"
->>>>>>> master
 description = "Provides previews for multiple archive formats"
 authors = [
     {name = "DataShades", email = "datashades@linkdigital.com.au"},
