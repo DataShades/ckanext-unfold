@@ -92,9 +92,10 @@ ckan.module("unfold-init-jstree", function ($, _) {
                 this.tree.on("select_node.jstree", (_, data) => {
                     const node = data.node;
                     const nodeHref = node.a_attr?.href || null;
+                    const nodeTarget = node.a_attr?.target || "_self";
 
                     if (nodeHref && nodeHref !== "#") {
-                        window.open(nodeHref, "_blank");
+                        window.open(nodeHref, nodeTarget);
                     }
                 });
             }
