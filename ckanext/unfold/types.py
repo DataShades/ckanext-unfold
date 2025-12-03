@@ -17,7 +17,7 @@ class Node(BaseModel):
     state: dict[str, bool] = Field(default={"opened": True})
     data: dict[str, Any] = Field(default_factory=dict)
     li_attr: dict[str, str] | None = None
-    a_attr: dict[str, str] | None = None
+    a_attr: dict[str, str] | None = Field(default={"tabindex": "0"})
     children: bool = False
 
 

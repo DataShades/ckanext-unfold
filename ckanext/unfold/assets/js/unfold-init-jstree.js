@@ -62,11 +62,11 @@ ckan.module("unfold-init-jstree", function ($, _) {
             }
 
             this.tree = $(this.el)
-                .on("ready.jstree", () => {
-                    this.loadState.hide();
-                    this._enableKeyboardNavigation();
-                })
+                .on("ready.jstree", () => {this.loadState.hide()})
                 .on("loading.jstree", () => this.loadState.show())
+                .on("activate_node.jstree", (_, data) => {
+                    this.tree.jstree('toggle_node', data.node);
+                })
                 .jstree({
                     core: {
                         data: data,
@@ -102,30 +102,6 @@ ckan.module("unfold-init-jstree", function ($, _) {
                     }
                 });
             }
-        },
-
-        _enableKeyboardNavigation: function () {
-            this.tree.find('a.jstree-anchor').attr('tabindex', '0');
-
-            this.tree.on('keydown', 'a.jstree-anchor', (e) => {
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-
-                    const $anchor = $(e.currentTarget);
-                    const nodeId = $anchor.parent().attr('id');
-                    const node = this.tree.jstree('get_node', nodeId);
-                    const href = $anchor.attr('href');
-
-                    // If directory (href="#"), toggle it
-                    if (href === "#") {
-                        this.tree.jstree('toggle_node', node);
-                    }
-                    // If file (has URL), open it
-                    else if (href) {
-                        window.open(href, "_blank");
-                    }
-                }
-            });
         },
 
         _getContextMenuItems: function (node) {
