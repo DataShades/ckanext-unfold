@@ -66,6 +66,11 @@ ckan.module("unfold-init-jstree", function ($, _) {
                 .on("loading.jstree", () => this.loadState.show())
                 .on("activate_node.jstree", (_, data) => {
                     this.tree.jstree('toggle_node', data.node);
+
+                    // If it's a file (no children), deselect it so it can be clicked again
+                    if (data.node.children.length === 0) {
+                        data.instance.deselect_node(data.node);
+                    }
                 })
                 .jstree({
                     core: {
