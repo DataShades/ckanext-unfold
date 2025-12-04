@@ -64,6 +64,9 @@ ckan.module("unfold-init-jstree", function ($, _) {
             this.tree = $(this.el)
                 .on("ready.jstree", () => this.loadState.hide())
                 .on("loading.jstree", () => this.loadState.show())
+                .on("activate_node.jstree", (_, data) => {
+                    this.tree.jstree('toggle_node', data.node);
+                })
                 .jstree({
                     core: {
                         data: data,
