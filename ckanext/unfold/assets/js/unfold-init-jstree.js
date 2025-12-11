@@ -35,6 +35,34 @@ ckan.module("unfold-init-jstree", function ($, _) {
             });
         },
 
+        _setupKeyboardNavigation: function () {
+            // Handle TAB, SHIFT+TAB navigation
+            this.tree.on("keydown.jstree", ".jstree-anchor", (e) => {
+                if (e.key === "Tab") {
+                    e.preventDefault();
+                    this._handleTabNavigation(e.shiftKey, $(e.currentTarget));
+                }
+            });
+        },
+
+        _handleTabNavigation: function (isShiftTab, currentAnchor) {
+            // Get all visible anchors in the tree
+            const allAnchors = this.tree.find(".jstree-anchor:visible");
+            const currentIndex = allAnchors.index(currentAnchor);
+
+            let targetIndex;
+            if (isShiftTab) {
+                // Move to previous anchor, or stay at first if already there
+                targetIndex = currentIndex > 0 ? currentIndex - 1 : 0;
+            } else {
+                // Move to next anchor, or stay at last if already there
+                targetIndex = currentIndex < allAnchors.length - 1 ? currentIndex + 1 : allAnchors.length - 1;
+            }
+
+            const targetAnchor = allAnchors.eq(targetIndex);
+            targetAnchor.focus();
+        },
+
         _onSuccessRequest: function (data) {
             if (data.result.error) {
                 this._displayErrorReason(data.result.error);
@@ -62,15 +90,13 @@ ckan.module("unfold-init-jstree", function ($, _) {
             }
 
             this.tree = $(this.el)
-                .on("ready.jstree", () => this.loadState.hide())
+                .on("ready.jstree", () => {
+                    this.loadState.hide();
+                    this._setupKeyboardNavigation();
+                })
                 .on("loading.jstree", () => this.loadState.show())
                 .on("activate_node.jstree", (_, data) => {
                     this.tree.jstree('toggle_node', data.node);
-
-                    // If it's a file (no children), deselect it so it can be clicked again
-                    if (data.node.children.length === 0) {
-                        data.instance.deselect_node(data.node);
-                    }
                 })
                 .jstree({
                     core: {
