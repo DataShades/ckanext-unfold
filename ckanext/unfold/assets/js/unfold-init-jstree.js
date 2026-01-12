@@ -72,6 +72,7 @@ ckan.module("unfold-init-jstree", function ($, _) {
                         data: data,
                         themes: { dots: false },
                         animation: withAnimation ? 200 : 0,
+                        multiple: false,
                     },
                     search: {
                         show_only_matches: this.options.searchShowOnlyMatches,
@@ -90,31 +91,6 @@ ckan.module("unfold-init-jstree", function ($, _) {
                     },
                     plugins: plugins,
                 });
-
-            // Add listeners on the tree element to intercept Ctrl/Shift + left-click before jsTree
-            // or browser selection can act on it. This allows us to disable multi-selection of nodes 
-            // when the mentioned keys combinations are pressed.
-            const treeEl = this.tree && this.tree[0];
-            if (treeEl) {
-                this._modifierClickHandler = (ev) => {
-                    if ((ev.button === 0 || ev.which === 1) && (ev.ctrlKey || ev.metaKey || ev.shiftKey)) {
-                        let t = ev.target;
-                        while (t && t !== treeEl) {
-                            if (t.classList && t.classList.contains("jstree-anchor")) {
-                                // Prevent default browser actions (selection, focus change, etc.).
-                                ev.preventDefault();
-                                // Prevent other event handlers from running.
-                                if (ev.stopImmediatePropagation) ev.stopImmediatePropagation();
-                                ev.stopPropagation();
-                                return false;
-                            }
-                            t = t.parentNode;
-                        }
-                    }
-                };
-                treeEl.addEventListener("mousedown", this._modifierClickHandler, true);
-                treeEl.addEventListener("click", this._modifierClickHandler, true);
-            }
 
             if (!this.options.showContextMenu) {
                 this.tree.on("select_node.jstree", (_, data) => {
