@@ -103,6 +103,7 @@ ckan.module("unfold-init-jstree", function ($, _) {
                         data: data,
                         themes: { dots: false },
                         animation: withAnimation ? 200 : 0,
+                        multiple: false,
                     },
                     search: {
                         show_only_matches: this.options.searchShowOnlyMatches,
