@@ -35,34 +35,6 @@ ckan.module("unfold-init-jstree", function ($, _) {
             });
         },
 
-        _setupKeyboardNavigation: function () {
-            // Handle TAB, SHIFT+TAB navigation
-            this.tree.on("keydown.jstree", ".jstree-anchor", (e) => {
-                if (e.key === "Tab") {
-                    e.preventDefault();
-                    this._handleTabNavigation(e.shiftKey, $(e.currentTarget));
-                }
-            });
-        },
-
-        _handleTabNavigation: function (isShiftTab, currentAnchor) {
-            // Get all visible anchors in the tree
-            const allAnchors = this.tree.find(".jstree-anchor:visible");
-            const currentIndex = allAnchors.index(currentAnchor);
-
-            let targetIndex;
-            if (isShiftTab) {
-                // Move to previous anchor, or stay at first if already there
-                targetIndex = currentIndex > 0 ? currentIndex - 1 : 0;
-            } else {
-                // Move to next anchor, or stay at last if already there
-                targetIndex = currentIndex < allAnchors.length - 1 ? currentIndex + 1 : allAnchors.length - 1;
-            }
-
-            const targetAnchor = allAnchors.eq(targetIndex);
-            targetAnchor.focus();
-        },
-
         _onSuccessRequest: function (data) {
             if (data.result.error) {
                 this._displayErrorReason(data.result.error);
@@ -89,14 +61,40 @@ ckan.module("unfold-init-jstree", function ($, _) {
                 plugins.push("sort");
             }
 
+            // Function to move focus out of the tree on Tab / Shift+Tab
+            const focusableSelector = "a[href], area[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), button:not([disabled]), [tabindex]:not([tabindex='-1'])";
+            function moveTab(instance, forward) {
+                // Get all focusable elements on the page
+                const focusable = Array.from(document.querySelectorAll(focusableSelector)).filter(function (el) {
+                    return (el.offsetWidth > 0 || el.offsetHeight > 0) && !el.hasAttribute("disabled");
+                });
+                // Get focusable elements within the tree
+                const treeFocusable = Array.from(instance.element[0].querySelectorAll(focusableSelector)).filter(function (el) {
+                    return focusable.indexOf(el) !== -1;
+                });
+
+                if (!treeFocusable.length) return;
+
+                if (forward) {
+                    const last = treeFocusable[treeFocusable.length - 1];
+                    const idx = focusable.indexOf(last);
+                    const next = focusable[idx + 1];
+                    if (next) { next.focus(); } else { document.activeElement.blur(); }
+                } else {
+                    const first = treeFocusable[0];
+                    const idx = focusable.indexOf(first);
+                    const prev = focusable[idx - 1];
+                    if (prev) { prev.focus(); } else { document.activeElement.blur(); }
+                }
+            };
+
             this.tree = $(this.el)
                 .on("ready.jstree", () => {
                     this.loadState.hide();
-                    this._setupKeyboardNavigation();
                 })
                 .on("loading.jstree", () => this.loadState.show())
                 .on("activate_node.jstree", (_, data) => {
-                    this.tree.jstree('toggle_node', data.node);
+                    this.tree.jstree("toggle_node", data.node);
                 })
                 .jstree({
                     core: {
@@ -104,6 +102,16 @@ ckan.module("unfold-init-jstree", function ($, _) {
                         themes: { dots: false },
                         animation: withAnimation ? 200 : 0,
                         multiple: false,
+                        keyboard: {
+                            "tab": function (e) {
+                                e.preventDefault();
+                                moveTab(this, true);
+                            },
+                            "shift+tab": function (e) {
+                                e.preventDefault();
+                                moveTab(this, false);
+                            }
+                        },
                     },
                     search: {
                         show_only_matches: this.options.searchShowOnlyMatches,
