@@ -5,6 +5,9 @@ ckan.module("unfold-init-jstree", function ($, _) {
             data: null,
             resourceId: null,
             resourceViewId: null,
+            resourceUrl: null,
+            resourceRemote: null,
+            resourceFormat: null,
             animationThreshold: 1000,
             searchShowOnlyMatches: true,
             searchCloseOpenedOnClear: false,
@@ -24,13 +27,21 @@ ckan.module("unfold-init-jstree", function ($, _) {
             $("#jstree-expand-all").click(() => this.tree.jstree("open_all"));
             $("#jstree-collapse-all").click(() => this.tree.jstree("close_all"));
 
-            // Fetch archive structure data after page load
+            const payload = {
+                id: this.options.resourceId,
+                view_id: this.options.resourceViewId,
+                url: this.options.resourceUrl,
+                is_remote: this.options.resourceRemote,
+                format: this.options.resourceFormat
+            }
+
+            if (!payload.view_id || payload.view_id === true) {
+                delete payload.view_id;
+            }
+
             $.ajax({
                 url: this.sandbox.url("/api/action/get_archive_structure"),
-                data: {
-                    id: this.options.resourceId,
-                    view_id: this.options.resourceViewId,
-                },
+                data: payload,
                 success: this._onSuccessRequest,
             });
         },

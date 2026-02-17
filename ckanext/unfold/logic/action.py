@@ -17,15 +17,21 @@ def get_archive_structure(
     context: types.Context, data_dict: types.Dict[str, str]
 ) -> dict[str, str] | list[dict[str, Any]]:
     """Return archive tree nodes."""
-    resource = tk.get_action("resource_show")(context, {"id": data_dict["id"]})
-    resource_view = tk.get_action("resource_view_show")(
-        context, {"id": data_dict["view_id"]}
-    )
+    if data_dict["is_remote"]:
+        try:
+            nodes = unf_utils.get_url_archive_tree(data_dict)
+        except unf_exception.UnfoldError as e:
+            return {"error": str(e)}
+    else:
+        resource = tk.get_action("resource_show")(context, {"id": data_dict["id"]})
+        resource_view = tk.get_action("resource_view_show")(
+            context, {"id": data_dict["view_id"]}
+        )
 
-    try:
-        nodes = unf_utils.get_archive_tree(resource, resource_view)
-    except unf_exception.UnfoldError as e:
-        return {"error": str(e)}
+        try:
+            nodes = unf_utils.get_archive_tree(resource, resource_view)
+        except unf_exception.UnfoldError as e:
+            return {"error": str(e)}
 
     close_folders = len(nodes) > unf_config.get_expand_nodes_threshold()
     return [_serialize_node(n, close_folders) for n in nodes]

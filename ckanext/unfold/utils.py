@@ -191,6 +191,27 @@ def get_archive_tree(
     return archive_tree
 
 
+def get_url_archive_tree(resource: dict[str, Any]) -> list[unf_types.Node]:
+    cache_enabled = unf_config.is_cache_enabled()
+    cached_tree = UnfoldCacheManager.get(resource["url"])
+
+    if cache_enabled and cached_tree:
+        return cached_tree
+
+    adapter_cls = get_adapter_for_resource(resource)
+
+    if adapter_cls is None:
+        raise unf_exception.UnfoldError(f"No adapter for `{resource['url']}` archives")
+
+    adapter_instance = adapter_cls(resource, {})
+    archive_tree = adapter_instance.build_archive_tree()
+
+    if cache_enabled:
+        UnfoldCacheManager.save(archive_tree, resource["url"])
+
+    return archive_tree
+
+
 def get_adapter_for_resource(
     resource: dict[str, Any],
 ) -> type[unf_adapters.BaseAdapter] | None:
