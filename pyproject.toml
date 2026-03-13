@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ckanext-unfold"
-version = "2.2.0"
+version = "2.3.0"
 description = "Provides previews for multiple archive formats"
 authors = [
     {name = "DataShades", email = "datashades@linkdigital.com.au"},
@@ -27,7 +27,6 @@ dependencies = [
     "rarfile>=4.0",
     "py7zr>=0.20.6",
     "rpmfile>=1.1.1",
-    "pydantic>=2.3.0,<3.0.0",
     "ar>=1.0.0,<2.0.0",
     "zstandard>=0.21.0,<1.0.0",
 ]
@@ -49,11 +48,10 @@ find = {}
 [tool.ruff]
 target-version = "py311"
 
-[tool.isort]
-known_ckan = "ckan"
-known_ckanext = "ckanext"
-known_self = "ckanext.unfold"
-sections = "FUTURE,STDLIB,FIRSTPARTY,THIRDPARTY,CKAN,CKANEXT,SELF,LOCALFOLDER"
+[tool.ruff.lint.isort.sections]
+ckan = ["ckan"]
+ckanext = ["ckanext"]
+self = ["ckanext.unfold"]
 
 [tool.pytest.ini_options]
 addopts = "--ckan-ini test.ini"

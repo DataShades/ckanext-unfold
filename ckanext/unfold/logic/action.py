@@ -1,3 +1,4 @@
+from dataclasses import asdict
 from typing import Any
 
 from ckan import types
@@ -38,7 +39,7 @@ def get_archive_structure(
 
 
 def _serialize_node(node: unf_types.Node, close_folders: bool) -> dict[str, Any]:
-    data = node.model_dump()
+    data = asdict(node)
 
     size = node.data.get("size", "")
     modified_at = node.data.get("modified_at", "")

@@ -4,6 +4,7 @@ import json
 import logging
 import math
 import pathlib
+from dataclasses import asdict
 from typing import Any
 
 import redis
@@ -136,7 +137,7 @@ class UnfoldCacheManager:
         """Save an archive structure to Redis."""
         cls._conn = cls._ensure_conn()
 
-        data = json.dumps([n.model_dump() for n in nodes])
+        data = json.dumps([asdict(n) for n in nodes])
         cls._conn.setex(cls._key(resource_id), REDIS_CACHE_TTL, data)
 
     @classmethod
