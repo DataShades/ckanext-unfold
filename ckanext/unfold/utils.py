@@ -11,6 +11,7 @@ import redis
 
 import ckan.plugins.toolkit as tk
 from ckan.lib.redis import connect_to_redis
+from ckan.lib.uploader import get_resource_uploader
 
 import ckanext.unfold.adapters as unf_adapters
 import ckanext.unfold.config as unf_config
@@ -183,6 +184,9 @@ def get_archive_tree(
         res_format = resource["format"].lower()
         raise unf_exception.UnfoldError(f"No adapter for `{res_format}` archives")
 
+    if "cloudstorage" in tk.g.plugins:
+        _prepare_cloudstorage_resource(resource)
+
     adapter_instance = adapter_cls(resource, resource_view)
     archive_tree = adapter_instance.build_archive_tree()
 
@@ -190,6 +194,20 @@ def get_archive_tree(
         UnfoldCacheManager.save(archive_tree, resource["id"])
 
     return archive_tree
+
+
+def _prepare_cloudstorage_resource(resource: dict[str, Any]) -> None:
+    uploader = get_resource_uploader(resource)
+
+    if any(cls.__name__ == "ResourceCloudStorage" for cls in type(uploader).__mro__):
+        try:
+            resource["url"] = get_resource_uploader(resource).get_url_from_filename(  # type: ignore
+                resource["id"], resource["name"]
+            )
+        except Exception as e:
+            raise unf_exception.UnfoldError(f"Error fetching remote archive: {e}") from e
+        else:
+            resource["type"] = "url"
 
 
 def get_url_archive_tree(resource: dict[str, Any]) -> list[unf_types.Node]:

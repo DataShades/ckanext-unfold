@@ -41,24 +41,27 @@ class ZipAdapter(BaseAdapter):
 
     def get_file_list_from_url(self, url: str) -> list[ZipInfo]:
         try:
-            head = requests.head(url, timeout=DEFAULT_TIMEOUT)
+            resp = requests.get(
+                url,
+                headers={"Range": "bytes=0-0"},
+                timeout=DEFAULT_TIMEOUT,
+            )
         except requests.RequestException as e:
-            raise unf_exception.UnfoldError(
-                f"Error fetching remote archive headers: {e}"
-            ) from e
+            raise unf_exception.UnfoldError(f"Error probing remote archive: {e}") from e
 
         end = None
 
-        if "content-length" in head.headers:
-            end = int(head.headers["content-length"])
+        content_range = resp.headers.get("content-range")
 
-        if "content-range" in head.headers:
-            end = int(head.headers["content-range"].split("/")[1])
+        if content_range:
+            end = int(content_range.split("/")[-1])
+        elif "content-length" in resp.headers:
+            end = int(resp.headers["content-length"])
 
         if not end:
             return []
 
-        return self._get_remote_zip_infolist(url, end - 65536, end)
+        return self._get_remote_zip_infolist(url, max(0, end - 65536), end)
 
     def _build_node(self, entry: ZipInfo) -> unf_types.Node:
         parts = [p for p in entry.filename.split("/") if p]
