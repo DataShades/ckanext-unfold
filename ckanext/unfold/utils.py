@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import os
 import json
 import logging
 import math
 import pathlib
+import mimetypes
 from dataclasses import asdict
 from typing import Any
 
@@ -199,15 +201,20 @@ def get_archive_tree(
 def _prepare_cloudstorage_resource(resource: dict[str, Any]) -> None:
     uploader = get_resource_uploader(resource)
 
-    if any(cls.__name__ == "ResourceCloudStorage" for cls in type(uploader).__mro__):
-        try:
-            resource["url"] = get_resource_uploader(resource).get_url_from_filename(  # type: ignore
-                resource["id"], resource["name"]
-            )
-        except Exception as e:
-            raise unf_exception.UnfoldError(f"Error fetching remote archive: {e}") from e
-        else:
-            resource["type"] = "url"
+    if not any(cls.__name__ == "ResourceCloudStorage" for cls in type(uploader).__mro__):
+        return
+
+    filename = os.path.basename(resource["url"])
+    content_type, _ = mimetypes.guess_type(filename)
+
+    try:
+        resource["url"] = get_resource_uploader(resource).get_url_from_filename(  # type: ignore
+            resource["id"], filename, content_type=content_type
+        )
+    except Exception as e:
+        raise unf_exception.UnfoldError(f"Error fetching remote archive: {e}") from e
+    else:
+        resource["type"] = "url"
 
 
 def get_url_archive_tree(resource: dict[str, Any]) -> list[unf_types.Node]:

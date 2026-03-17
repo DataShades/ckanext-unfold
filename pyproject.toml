@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ckanext-unfold"
-version = "2.3.1"
+version = "2.3.2"
 description = "Provides previews for multiple archive formats"
 authors = [
     {name = "DataShades", email = "datashades@linkdigital.com.au"},
@@ -25,8 +25,8 @@ keywords = ["CKAN"]
 urls = {Homepage = "https://github.com/DataShades/ckanext-unfold"}
 dependencies = [
     "rarfile>=4.0",
-    "py7zr>=0.20.6",
-    "rpmfile>=1.1.1",
+    "py7zr>=1.1.0",
+    "rpmfile>=2.1.0",
     "ar>=1.0.0,<2.0.0",
     "zstandard>=0.21.0,<1.0.0",
 ]
