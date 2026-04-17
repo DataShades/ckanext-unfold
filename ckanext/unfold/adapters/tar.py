@@ -33,7 +33,7 @@ class TarAdapter(BaseAdapter):
                 with tarfile.open(filepath, mode) as archive:  # type: ignore
                     file_list: list[TarInfo] = archive.getmembers()
         except TarError as e:
-            raise unf_exception.UnfoldError(f"Error openning archive: {e}") from e
+            raise unf_exception.UnfoldError(f"Error opening archive: {e}") from e
         except requests.RequestException as e:
             raise unf_exception.UnfoldError(
                 f"Error fetching remote archive: {e}"

@@ -32,7 +32,7 @@ class SevenZipAdapter(BaseAdapter):
 
                     file_list: list[FileInfo] = archive.list()
         except exceptions.ArchiveError as e:
-            raise unf_exception.UnfoldError(f"Error openning archive: {e}") from e
+            raise unf_exception.UnfoldError(f"Error opening archive: {e}") from e
         except requests.RequestException as e:
             raise unf_exception.UnfoldError(
                 f"Error fetching remote archive: {e}"
