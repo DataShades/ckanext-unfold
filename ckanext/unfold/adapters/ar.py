@@ -26,7 +26,7 @@ class ArAdapter(BaseAdapter):
                     archive = Archive(file)
                     file_list: list[ArPath] = archive.entries
         except ArchiveError as e:
-            raise unf_exception.UnfoldError(f"Error openning archive: {e}") from e
+            raise unf_exception.UnfoldError(f"Error opening archive: {e}") from e
         except requests.RequestException as e:
             raise unf_exception.UnfoldError(
                 f"Error fetching remote archive: {e}"
@@ -59,6 +59,6 @@ class ArAdapter(BaseAdapter):
         try:
             archive = Archive(BytesIO(content))
         except ArchiveError as e:
-            raise unf_exception.UnfoldError(f"Error openning archive: {e}") from e
+            raise unf_exception.UnfoldError(f"Error opening archive: {e}") from e
 
         return archive.entries

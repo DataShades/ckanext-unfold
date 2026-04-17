@@ -31,7 +31,7 @@ class ZipAdapter(BaseAdapter):
 
                     file_list: list[ZipInfo] = archive.infolist()
         except (LargeZipFile, BadZipFile) as e:
-            raise unf_exception.UnfoldError(f"Error openning archive: {e}") from e
+            raise unf_exception.UnfoldError(f"Error opening archive: {e}") from e
         except requests.RequestException as e:
             raise unf_exception.UnfoldError(
                 f"Error fetching remote archive: {e}"

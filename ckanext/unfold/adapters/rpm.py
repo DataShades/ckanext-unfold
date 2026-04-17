@@ -24,7 +24,7 @@ class RpmAdapter(BaseAdapter):
                 with RPMFile(self.filepath, "rb") as archive:
                     file_list: list[RPMInfo] = archive.getmembers()
         except (NotImplementedError, KeyError) as e:
-            raise unf_exception.UnfoldError(f"Error openning archive: {e}") from e
+            raise unf_exception.UnfoldError(f"Error opening archive: {e}") from e
         except requests.RequestException as e:
             raise unf_exception.UnfoldError(
                 f"Error fetching remote archive: {e}"
