@@ -30,7 +30,7 @@ def get_archive_structure(
         )
 
         try:
-            nodes = unf_utils.get_archive_tree(resource, resource_view)
+            nodes = unf_utils.get_archive_tree(resource, resource_view, context)
         except unf_exception.UnfoldError as e:
             return {"error": str(e)}
 
