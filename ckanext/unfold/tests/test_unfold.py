@@ -1,4 +1,5 @@
 import os
+from types import SimpleNamespace
 
 import pytest
 
@@ -71,7 +72,13 @@ def test_prepare_ckanext_files_resource(monkeypatch):
         "get_action",
         lambda _name: lambda _context, _data: file_info,
     )
-    monkeypatch.setattr(utils._get_files_api(), "get_storage", lambda _name: Storage())
+    files_api = SimpleNamespace(
+        get_storage=lambda _name: Storage(),
+        FileData=SimpleNamespace(
+            from_dict=lambda data: SimpleNamespace(location=data["location"])
+        ),
+    )
+    monkeypatch.setattr(utils, "_get_files_api", lambda: files_api)
 
     resource = {
         "url": "https://ckan.example/file/download/file-id",
