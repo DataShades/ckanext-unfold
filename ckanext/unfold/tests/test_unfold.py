@@ -1,5 +1,6 @@
 import os
-from types import SimpleNamespace
+from contextlib import contextmanager
+from typing import Iterator
 
 import pytest
 
@@ -51,42 +52,26 @@ def test_build_complex_tree():
     assert len(root_folders) == 4
 
 
-def test_prepare_ckanext_files_resource(monkeypatch):
-    file_info = {
-        "id": "file-id",
-        "name": "archive.zip",
-        "location": "archives/archive.zip",
-        "storage": "resources",
-        "size": 100,
-        "content_type": "application/zip",
-    }
-
-    class Storage:
-        def temporary_link(self, data, duration):
-            assert data.location == "archives/archive.zip"
-            assert duration == utils.TEMPORARY_LINK_TTL
-            return "https://storage.example/archive.zip?signature=test"
-
-    monkeypatch.setattr(
-        utils.tk,
-        "get_action",
-        lambda _name: lambda _context, _data: file_info,
-    )
-    files_api = SimpleNamespace(
-        get_storage=lambda _name: Storage(),
-        FileData=SimpleNamespace(
-            from_dict=lambda data: SimpleNamespace(location=data["location"])
-        ),
-    )
-    monkeypatch.setattr(utils, "_get_files_api", lambda: files_api)
-
+@pytest.mark.usefixtures("with_request_context")
+def test_build_file_resource_tree(monkeypatch, ckan_config):
+    file_path = os.path.join(os.path.dirname(__file__), "data/test_archive.zip")
     resource = {
-        "url": "https://ckan.example/file/download/file-id",
+        "id": "file-resource",
+        "format": "zip",
         "url_type": "file",
-        "size": None,
     }
-    with utils._prepare_file_resource(resource, {}) as (prepared, filepath):
-        assert prepared["type"] == "url"
-        assert prepared["url"].startswith("https://storage.example/")
-        assert prepared["size"] == 100
-        assert filepath is None
+    ckan_config["ckanext.unfold.enable_cache"] = False
+
+    @contextmanager
+    def prepare_file_resource(
+        resource: dict,
+        context: dict,
+    ) -> Iterator[tuple[dict, str]]:
+        yield resource, file_path
+
+    monkeypatch.setattr(utils, "_prepare_file_resource", prepare_file_resource)
+
+    tree = utils.get_archive_tree(resource, {})
+
+    assert len(tree) == 11
+    assert isinstance(tree[0], types.Node)

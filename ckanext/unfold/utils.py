@@ -195,21 +195,26 @@ def get_archive_tree(
     if "cloudstorage" in tk.g.plugins:
         _prepare_cloudstorage_resource(resource)
 
-    with _prepare_file_resource(resource, context or {}) as (
-        adapter_resource,
-        filepath,
-    ):
-        adapter_instance = adapter_cls(
-            adapter_resource,
-            resource_view,
-            filepath=filepath,
-        )
-        archive_tree = adapter_instance.build_archive_tree()
+    if resource.get("url_type") == "file":
+        with _prepare_file_resource(resource, context or {}) as prepared:
+            archive_tree = _build_archive_tree(adapter_cls, resource_view, *prepared)
+    else:
+        archive_tree = _build_archive_tree(adapter_cls, resource_view, resource)
 
     if cache_enabled:
         UnfoldCacheManager.save(archive_tree, resource["id"])
 
     return archive_tree
+
+
+def _build_archive_tree(
+    adapter_cls: type[unf_adapters.BaseAdapter],
+    resource_view: dict[str, Any],
+    resource: dict[str, Any],
+    filepath: str | None = None,
+) -> list[unf_types.Node]:
+    adapter_instance = adapter_cls(resource, resource_view, filepath=filepath)
+    return adapter_instance.build_archive_tree()
 
 
 @contextmanager
@@ -218,10 +223,6 @@ def _prepare_file_resource(
     context: dict[str, Any],
 ) -> Iterator[tuple[dict[str, Any], str | None]]:
     """Make a ckanext-files resource readable by an archive adapter."""
-    if resource.get("url_type") != "file":
-        yield resource, None
-        return
-
     file_id = resource.get("url", "").rstrip("/").rsplit("/", 1)[-1]
     if not file_id:
         raise unf_exception.UnfoldError("Unable to determine the resource file")
