@@ -1,4 +1,6 @@
 import os
+from contextlib import contextmanager
+from typing import Iterator
 
 import pytest
 
@@ -48,3 +50,28 @@ def test_build_complex_tree():
     assert len(tree) == 15004
     root_folders = [node for node in tree if node.parent == "#"]
     assert len(root_folders) == 4
+
+
+@pytest.mark.usefixtures("with_request_context")
+def test_build_file_resource_tree(monkeypatch, ckan_config):
+    file_path = os.path.join(os.path.dirname(__file__), "data/test_archive.zip")
+    resource = {
+        "id": "file-resource",
+        "format": "zip",
+        "url_type": "file",
+    }
+    ckan_config["ckanext.unfold.enable_cache"] = False
+
+    @contextmanager
+    def prepare_file_resource(
+        resource: dict,
+        context: dict,
+    ) -> Iterator[tuple[dict, str]]:
+        yield resource, file_path
+
+    monkeypatch.setattr(utils, "_prepare_file_resource", prepare_file_resource)
+
+    tree = utils.get_archive_tree(resource, {})
+
+    assert len(tree) == 11
+    assert isinstance(tree[0], types.Node)

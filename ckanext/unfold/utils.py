@@ -6,6 +6,9 @@ import logging
 import math
 import pathlib
 import mimetypes
+import tempfile
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import asdict
 from typing import Any
 
@@ -22,6 +25,7 @@ import ckanext.unfold.types as unf_types
 
 DEFAULT_DATE_FORMAT = "%d/%m/%Y - %H:%M"
 REDIS_CACHE_TTL = 3600 * 24  # 24 hour
+TEMPORARY_LINK_TTL = 300
 log = logging.getLogger(__name__)
 
 
@@ -173,7 +177,9 @@ class UnfoldCacheManager:
 
 
 def get_archive_tree(
-    resource: dict[str, Any], resource_view: dict[str, Any]
+    resource: dict[str, Any],
+    resource_view: dict[str, Any],
+    context: dict[str, Any] | None = None,
 ) -> list[unf_types.Node]:
     cache_enabled = unf_config.is_cache_enabled()
     cached_tree = UnfoldCacheManager.get(resource["id"])
@@ -189,13 +195,99 @@ def get_archive_tree(
     if "cloudstorage" in tk.g.plugins:
         _prepare_cloudstorage_resource(resource)
 
-    adapter_instance = adapter_cls(resource, resource_view)
-    archive_tree = adapter_instance.build_archive_tree()
+    if resource.get("url_type") == "file":
+        with _prepare_file_resource(resource, context or {}) as prepared:
+            archive_tree = _build_archive_tree(adapter_cls, resource_view, *prepared)
+    else:
+        archive_tree = _build_archive_tree(adapter_cls, resource_view, resource)
 
     if cache_enabled:
         UnfoldCacheManager.save(archive_tree, resource["id"])
 
     return archive_tree
+
+
+def _build_archive_tree(
+    adapter_cls: type[unf_adapters.BaseAdapter],
+    resource_view: dict[str, Any],
+    resource: dict[str, Any],
+    filepath: str | None = None,
+) -> list[unf_types.Node]:
+    adapter_instance = adapter_cls(resource, resource_view, filepath=filepath)
+    return adapter_instance.build_archive_tree()
+
+
+@contextmanager
+def _prepare_file_resource(
+    resource: dict[str, Any],
+    context: dict[str, Any],
+) -> Iterator[tuple[dict[str, Any], str | None]]:
+    """Make a ckanext-files resource readable by an archive adapter."""
+    file_id = resource.get("url", "").rstrip("/").rsplit("/", 1)[-1]
+    if not file_id:
+        raise unf_exception.UnfoldError("Unable to determine the resource file")
+
+    try:
+        files = _get_files_api()
+        file_info = tk.get_action("files_file_show")(context, {"id": file_id})
+        storage = files.get_storage(file_info["storage"])
+        file_data = files.FileData.from_dict(file_info)
+    except Exception as error:
+        raise unf_exception.UnfoldError(
+            f"Unable to access the resource file: {error}"
+        ) from error
+
+    try:
+        temporary_url = storage.temporary_link(
+            file_data,
+            TEMPORARY_LINK_TTL,
+        )
+    except Exception:
+        log.exception("Unable to create a temporary archive link")
+        temporary_url = None
+
+    if temporary_url:
+        adapter_resource = resource.copy()
+        adapter_resource.update(
+            {
+                "url": temporary_url,
+                "type": "url",
+                "size": file_info.get("size", resource.get("size")),
+            }
+        )
+        yield adapter_resource, None
+        return
+
+    if not storage.supports(files.Capability.STREAM):
+        raise unf_exception.UnfoldError("Resource storage does not support reading files")
+
+    suffix = pathlib.Path(file_info.get("name", "")).suffix
+    with tempfile.NamedTemporaryFile(suffix=suffix) as target:
+        try:
+            for chunk in storage.stream(file_data):
+                target.write(chunk)
+            target.flush()
+        except Exception as error:
+            raise unf_exception.UnfoldError(
+                f"Unable to read the resource file: {error}"
+            ) from error
+
+        yield resource, target.name
+
+
+def _get_files_api() -> Any:
+    """Load the storage API only when a ckanext-files resource is used."""
+    try:
+        from ckan.lib import files
+    except ImportError:
+        try:
+            from ckanext.files import shared as files
+        except ImportError as error:
+            raise unf_exception.UnfoldError(
+                "ckanext-files is required to read this resource"
+            ) from error
+
+    return files
 
 
 def _prepare_cloudstorage_resource(resource: dict[str, Any]) -> None:
