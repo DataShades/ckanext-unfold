@@ -1,14 +1,9 @@
 from __future__ import annotations
 
-import os
 import json
 import logging
 import math
 import pathlib
-import mimetypes
-import tempfile
-from collections.abc import Iterator
-from contextlib import contextmanager
 from dataclasses import asdict
 from typing import Any
 
@@ -16,7 +11,6 @@ import redis
 
 import ckan.plugins.toolkit as tk
 from ckan.lib.redis import connect_to_redis
-from ckan.lib.uploader import get_resource_uploader
 
 import ckanext.unfold.adapters as unf_adapters
 import ckanext.unfold.config as unf_config
@@ -39,68 +33,67 @@ get_adapter_for_resource_signal = tk.signals.ckanext.signal(
 )
 
 
+DEFAULT_ICON = "fa fa-file"
+
+GROUPED_ICONS = {
+    ("csv",): "fa fa-file-csv",
+    ("txt", "tsv", "ini", "nfo", "log"): "fa fa-file-text",
+    ("xls", "xlsx"): "fa fa-file-excel",
+    ("doc", "docx"): "fa fa-file-word",
+    ("ppt", "pptx", "pptm"): "fa fa-file-powerpoint",
+    (
+        "ai",
+        "gif",
+        "ico",
+        "tif",
+        "tiff",
+        "webp",
+        "png",
+        "jpeg",
+        "jpg",
+        "svg",
+        "bmp",
+        "psd",
+    ): "fa fa-file-image",
+    (
+        "7z",
+        "rar",
+        "zip",
+        "zipx",
+        "gzip",
+        "tar.gz",
+        "tar",
+        "deb",
+        "cbr",
+        "pkg",
+        "apk",
+    ): "fa fa-file-archive",
+    ("pdf",): "fa fa-file-pdf",
+    (
+        "json",
+        "xhtml",
+        "py",
+        "css",
+        "rs",
+        "html",
+        "php",
+        "sql",
+        "java",
+        "class",
+    ): "fa fa-file-code",
+    ("xml", "dtd"): "fa fa-file-contract",
+    ("mp3", "wav", "wma", "aac", "flac", "mpa", "ogg"): "fa fa-file-audio",
+    ("fnt", "fon", "otf", "ttf"): "fa fa-font",
+    ("pub", "pem"): "fa fa-file-shield",
+}
+
+ICON_BY_FORMAT = {
+    fmt: icon for formats, icon in GROUPED_ICONS.items() for fmt in formats
+}
+
+
 def get_icon_by_format(fmt: str) -> str:
-    default_icon = "fa fa-file"
-    fmt = fmt.lstrip(".")
-
-    icons = {
-        ("csv",): "fa fa-file-csv",
-        ("txt", "tsv", "ini", "nfo", "log"): "fa fa-file-text",
-        ("xls", "xlsx"): "fa fa-file-excel",
-        ("doc", "docx"): "fa fa-file-word",
-        ("ppt", "pptx", "pptm"): "fa fa-file-powerpoint",
-        (
-            "ai",
-            "gif",
-            "ico",
-            "tif",
-            "tiff",
-            "webp",
-            "png",
-            "jpeg",
-            "jpg",
-            "svg",
-            "bmp",
-            "psd",
-        ): "fa fa-file-image",
-        (
-            "7z",
-            "rar",
-            "zip",
-            "zipx",
-            "gzip",
-            "tar.gz",
-            "tar",
-            "deb",
-            "cbr",
-            "pkg",
-            "apk",
-        ): "fa fa-file-archive",
-        ("pdf",): "fa fa-file-pdf",
-        (
-            "json",
-            "xhtml",
-            "py",
-            "css",
-            "rs",
-            "html",
-            "php",
-            "sql",
-            "java",
-            "class",
-        ): "fa fa-file-code",
-        ("xml", "dtd"): "fa fa-file-contract",
-        ("mp3", "wav", "wma", "aac", "flac", "mpa", "ogg"): "fa fa-file-audio",
-        ("fnt", "fon", "otf", "ttf"): "fa fa-font",
-        ("pub", "pem"): "fa fa-file-shield",
-    }
-
-    for formats, icon in icons.items():
-        for _format in formats:
-            if _format == fmt:
-                return icon
-
-    return default_icon
+    return ICON_BY_FORMAT.get(fmt.lstrip("."), DEFAULT_ICON)
 
 
 def name_from_path(path: str | None) -> str:
@@ -177,29 +170,22 @@ class UnfoldCacheManager:
 
 
 def get_archive_tree(
-    resource: dict[str, Any],
-    resource_view: dict[str, Any],
-    context: dict[str, Any] | None = None,
+    resource: dict[str, Any], resource_view: dict[str, Any]
 ) -> list[unf_types.Node]:
     cache_enabled = unf_config.is_cache_enabled()
-    cached_tree = UnfoldCacheManager.get(resource["id"])
 
-    if cache_enabled and cached_tree:
-        return cached_tree
+    if cache_enabled:
+        cached_tree = UnfoldCacheManager.get(resource["id"])
+
+        if cached_tree:
+            return cached_tree
 
     adapter_cls = get_adapter_for_resource(resource)
     if adapter_cls is None:
         res_format = resource["format"].lower()
         raise unf_exception.UnfoldError(f"No adapter for `{res_format}` archives")
 
-    if "cloudstorage" in tk.g.plugins:
-        _prepare_cloudstorage_resource(resource)
-
-    if resource.get("url_type") == "file":
-        with _prepare_file_resource(resource, context or {}) as prepared:
-            archive_tree = _build_archive_tree(adapter_cls, resource_view, *prepared)
-    else:
-        archive_tree = _build_archive_tree(adapter_cls, resource_view, resource)
+    archive_tree = _build_archive_tree(adapter_cls, resource_view, resource)
 
     if cache_enabled:
         UnfoldCacheManager.save(archive_tree, resource["id"])
@@ -215,119 +201,6 @@ def _build_archive_tree(
 ) -> list[unf_types.Node]:
     adapter_instance = adapter_cls(resource, resource_view, filepath=filepath)
     return adapter_instance.build_archive_tree()
-
-
-@contextmanager
-def _prepare_file_resource(
-    resource: dict[str, Any],
-    context: dict[str, Any],
-) -> Iterator[tuple[dict[str, Any], str | None]]:
-    """Make a ckanext-files resource readable by an archive adapter."""
-    file_id = resource.get("url", "").rstrip("/").rsplit("/", 1)[-1]
-    if not file_id:
-        raise unf_exception.UnfoldError("Unable to determine the resource file")
-
-    try:
-        files = _get_files_api()
-        file_info = tk.get_action("files_file_show")(context, {"id": file_id})
-        storage = files.get_storage(file_info["storage"])
-        file_data = files.FileData.from_dict(file_info)
-    except Exception as error:
-        raise unf_exception.UnfoldError(
-            f"Unable to access the resource file: {error}"
-        ) from error
-
-    try:
-        temporary_url = storage.temporary_link(
-            file_data,
-            TEMPORARY_LINK_TTL,
-        )
-    except Exception:
-        log.exception("Unable to create a temporary archive link")
-        temporary_url = None
-
-    if temporary_url:
-        adapter_resource = resource.copy()
-        adapter_resource.update(
-            {
-                "url": temporary_url,
-                "type": "url",
-                "size": file_info.get("size", resource.get("size")),
-            }
-        )
-        yield adapter_resource, None
-        return
-
-    if not storage.supports(files.Capability.STREAM):
-        raise unf_exception.UnfoldError("Resource storage does not support reading files")
-
-    suffix = pathlib.Path(file_info.get("name", "")).suffix
-    with tempfile.NamedTemporaryFile(suffix=suffix) as target:
-        try:
-            for chunk in storage.stream(file_data):
-                target.write(chunk)
-            target.flush()
-        except Exception as error:
-            raise unf_exception.UnfoldError(
-                f"Unable to read the resource file: {error}"
-            ) from error
-
-        yield resource, target.name
-
-
-def _get_files_api() -> Any:
-    """Load the storage API only when a ckanext-files resource is used."""
-    try:
-        from ckan.lib import files
-    except ImportError:
-        try:
-            from ckanext.files import shared as files
-        except ImportError as error:
-            raise unf_exception.UnfoldError(
-                "ckanext-files is required to read this resource"
-            ) from error
-
-    return files
-
-
-def _prepare_cloudstorage_resource(resource: dict[str, Any]) -> None:
-    uploader = get_resource_uploader(resource)
-
-    if not any(cls.__name__ == "ResourceCloudStorage" for cls in type(uploader).__mro__):
-        return
-
-    filename = os.path.basename(resource["url"])
-    content_type, _ = mimetypes.guess_type(filename)
-
-    try:
-        resource["url"] = get_resource_uploader(resource).get_url_from_filename(  # type: ignore
-            resource["id"], filename, content_type=content_type
-        )
-    except Exception as e:
-        raise unf_exception.UnfoldError(f"Error fetching remote archive: {e}") from e
-    else:
-        resource["type"] = "url"
-
-
-def get_url_archive_tree(resource: dict[str, Any]) -> list[unf_types.Node]:
-    cache_enabled = unf_config.is_cache_enabled()
-    cached_tree = UnfoldCacheManager.get(resource["url"])
-
-    if cache_enabled and cached_tree:
-        return cached_tree
-
-    adapter_cls = get_adapter_for_resource(resource)
-
-    if adapter_cls is None:
-        raise unf_exception.UnfoldError(f"No adapter for `{resource['url']}` archives")
-
-    adapter_instance = adapter_cls(resource, {})
-    archive_tree = adapter_instance.build_archive_tree()
-
-    if cache_enabled:
-        UnfoldCacheManager.save(archive_tree, resource["url"])
-
-    return archive_tree
 
 
 def get_adapter_for_resource(

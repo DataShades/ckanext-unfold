@@ -17,51 +17,46 @@ from ckanext.unfold.adapters.base import DEFAULT_TIMEOUT, BaseAdapter
 
 log = logging.getLogger(__name__)
 
+# A ZIP central directory lives at the end of the file, so we only fetch the
+# tail. 64KiB covers the EOCD record (its comment is capped at 65535 bytes)
+# plus the central directory of most archives; larger directories grow the
+# window on demand.
+INITIAL_TAIL_SIZE = 65536
+TAIL_GROWTH_FACTOR = 4
+
 
 class ZipAdapter(BaseAdapter):
     def get_node_list(self) -> list[unf_types.Node]:
         try:
-            if self.remote:
-                file_list = self.get_file_list_from_url(self.filepath)
-            else:
-                with ZipFile(self.filepath) as archive:
-                    # zip format do not support encrypted filenames so we don't have
-                    # to check for pass protection, we have enough information from
-                    # `infolist` method
-
-                    file_list: list[ZipInfo] = archive.infolist()
+            file_list = self.get_file_list_from_url(self.filepath)
         except (LargeZipFile, BadZipFile) as e:
             raise unf_exception.UnfoldError(f"Error opening archive: {e}") from e
-        except requests.RequestException as e:
-            raise unf_exception.UnfoldError(
-                f"Error fetching remote archive: {e}"
-            ) from e
 
         return [self._build_node(entry) for entry in self.ensure_dir_entries(file_list)]
 
     def get_file_list_from_url(self, url: str) -> list[ZipInfo]:
-        try:
-            resp = requests.get(
-                url,
-                headers={"Range": "bytes=0-0"},
-                timeout=DEFAULT_TIMEOUT,
-            )
-        except requests.RequestException as e:
-            raise unf_exception.UnfoldError(f"Error probing remote archive: {e}") from e
+        """Read the ZIP central directory from a remote URL.
 
-        end = None
+        Only the tail of the archive is downloaded via an HTTP suffix range.
+        If the central directory is larger than the fetched tail, the window
+        is grown and re-fetched until it parses or the whole file is read.
+        Servers that ignore ``Range`` return the full file, which is parsed
+        as-is.
+        """
+        size = INITIAL_TAIL_SIZE
 
-        content_range = resp.headers.get("content-range")
+        while True:
+            content, total, ranged = self._fetch_tail(url, size)
 
-        if content_range:
-            end = int(content_range.split("/")[-1])
-        elif "content-length" in resp.headers:
-            end = int(resp.headers["content-length"])
+            try:
+                return ZipFile(BytesIO(content)).infolist()
+            except BadZipFile:
+                # A truncated central directory raises BadZipFile. Grow the
+                # window unless we already hold the entire file.
+                if not ranged or len(content) >= total or size >= total:
+                    raise
 
-        if not end:
-            return []
-
-        return self._get_remote_zip_infolist(url, max(0, end - 65536), end)
+                size = min(size * TAIL_GROWTH_FACTOR, total)
 
     def _build_node(self, entry: ZipInfo) -> unf_types.Node:
         parts = [p for p in entry.filename.split("/") if p]
@@ -92,19 +87,58 @@ class ZipAdapter(BaseAdapter):
             or "",
         }
 
-    def _get_remote_zip_infolist(self, url: str, start: int, end: int) -> list[ZipInfo]:
+    def _fetch_tail(self, url: str, size: int) -> tuple[bytes, int, bool]:
+        """Fetch the last ``size`` bytes of a remote file.
+
+        Returns the fetched content, the total file size, and whether the
+        server honored the Range request. When ranges are unsupported the
+        server returns the whole file (HTTP 200) and the flag is ``False``.
+
+        The total size is checked against the configured maximum before the
+        body is downloaded, so an over-limit archive is rejected without
+        pulling its contents (relevant when the server ignores ``Range``).
+        """
         try:
-            resp = requests.get(
+            with requests.get(
                 url,
-                headers={"Range": f"bytes={start}-{end}"},
+                headers={"Range": f"bytes=-{size}"},
                 timeout=DEFAULT_TIMEOUT,
-            )
+                stream=True,
+            ) as resp:
+                resp.raise_for_status()
+
+                ranged = resp.status_code == 206
+
+                if ranged:
+                    total = self._total_size_from_content_range(
+                        resp.headers.get("content-range")
+                    )
+                else:
+                    # Server ignored Range; the body is the whole file.
+                    total = self._content_length(resp.headers.get("content-length"))
+
+                self.enforce_size_limit(total)
+
+                content = resp.content
         except requests.RequestException as e:
             raise unf_exception.UnfoldError(
                 f"Error fetching remote archive: {e}"
             ) from e
 
-        return ZipFile(BytesIO(resp.content)).infolist()
+        return content, total if total is not None else len(content), ranged
+
+    @staticmethod
+    def _total_size_from_content_range(content_range: str | None) -> int | None:
+        """Extract the total file size from a Content-Range header value.
+
+        e.g. "bytes 200-1023/1024" -> 1024.
+        """
+        if not content_range or "/" not in content_range:
+            return None
+
+        total = content_range.rsplit("/", 1)[-1].strip()
+
+        return int(total) if total.isdigit() else None
 
     def ensure_dir_entries(self, file_list: list[ZipInfo]) -> list[ZipInfo]:
         """Ensure directory entries exist in a ZipFile infolist.

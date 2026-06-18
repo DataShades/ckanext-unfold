@@ -17,7 +17,7 @@ Features:
 
 ## Requirements
 
-CKAN >= 2.10
+CKAN >= 2.12
 
 Python >= 3.11
 

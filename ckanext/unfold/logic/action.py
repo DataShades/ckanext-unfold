@@ -17,22 +17,25 @@ import ckanext.unfold.utils as unf_utils
 def get_archive_structure(
     context: types.Context, data_dict: types.Dict[str, str]
 ) -> dict[str, str] | list[dict[str, Any]]:
-    """Return archive tree nodes."""
-    if data_dict["is_remote"]:
-        try:
-            nodes = unf_utils.get_url_archive_tree(data_dict)
-        except unf_exception.UnfoldError as e:
-            return {"error": str(e)}
-    else:
-        resource = tk.get_action("resource_show")(context, {"id": data_dict["id"]})
+    """Return archive tree nodes.
+
+    The archive URL and format are read from the resource itself (via
+    ``resource_show``, which also enforces authorization) rather than from the
+    request, so the caller cannot point the server at an arbitrary URL.
+    """
+    resource = tk.get_action("resource_show")(context, {"id": data_dict["id"]})
+
+    resource_view: dict[str, Any] = {}
+
+    if data_dict.get("view_id"):
         resource_view = tk.get_action("resource_view_show")(
             context, {"id": data_dict["view_id"]}
         )
 
-        try:
-            nodes = unf_utils.get_archive_tree(resource, resource_view, context)
-        except unf_exception.UnfoldError as e:
-            return {"error": str(e)}
+    try:
+        nodes = unf_utils.get_archive_tree(resource, resource_view)
+    except unf_exception.UnfoldError as e:
+        return {"error": str(e)}
 
     close_folders = len(nodes) > unf_config.get_expand_nodes_threshold()
     return [_serialize_node(n, close_folders) for n in nodes]

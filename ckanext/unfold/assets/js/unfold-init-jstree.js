@@ -5,9 +5,6 @@ ckan.module("unfold-init-jstree", function ($, _) {
             data: null,
             resourceId: null,
             resourceViewId: null,
-            resourceUrl: null,
-            resourceRemote: null,
-            resourceFormat: null,
             animationThreshold: 1000,
             searchShowOnlyMatches: true,
             searchCloseOpenedOnClear: false,
@@ -30,9 +27,6 @@ ckan.module("unfold-init-jstree", function ($, _) {
             const payload = {
                 id: this.options.resourceId,
                 view_id: this.options.resourceViewId,
-                url: this.options.resourceUrl,
-                is_remote: this.options.resourceRemote,
-                format: this.options.resourceFormat
             }
 
             if (!payload.view_id || payload.view_id === true) {

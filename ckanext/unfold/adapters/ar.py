@@ -4,7 +4,6 @@ import logging
 from io import BytesIO
 from typing import Any
 
-import requests
 from ar import Archive, ArchiveError
 from ar.archive import ArPath
 
@@ -19,18 +18,9 @@ log = logging.getLogger(__name__)
 class ArAdapter(BaseAdapter):
     def get_node_list(self) -> list[unf_types.Node]:
         try:
-            if self.remote:
-                file_list = self.get_file_list_from_url(self.filepath)
-            else:
-                with open(self.filepath, "rb") as file:
-                    archive = Archive(file)
-                    file_list: list[ArPath] = archive.entries
+            file_list = self.get_file_list_from_url(self.filepath)
         except ArchiveError as e:
             raise unf_exception.UnfoldError(f"Error opening archive: {e}") from e
-        except requests.RequestException as e:
-            raise unf_exception.UnfoldError(
-                f"Error fetching remote archive: {e}"
-            ) from e
 
         return [self._build_node(entry) for entry in file_list]
 
@@ -54,7 +44,7 @@ class ArAdapter(BaseAdapter):
 
     def get_file_list_from_url(self, url: str) -> list[ArPath]:
         """Download an archive and fetch a file list."""
-        content = self.make_request(url)
+        content = self.get_file_content(url)
 
         try:
             archive = Archive(BytesIO(content))

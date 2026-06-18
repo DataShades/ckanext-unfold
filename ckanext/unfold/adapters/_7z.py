@@ -21,22 +21,11 @@ log = logging.getLogger(__name__)
 class SevenZipAdapter(BaseAdapter):
     def get_node_list(self) -> list[unf_types.Node]:
         try:
-            if self.remote:
-                file_list = self.get_file_list_from_url(self.filepath)
-            else:
-                with py7zr.SevenZipFile(self.filepath) as archive:
-                    if archive.needs_password():
-                        raise unf_exception.UnfoldError(
-                            "Error. Archive is protected with password"
-                        )
-
-                    file_list: list[FileInfo] = archive.list()
+            file_list = self.get_file_list_from_url(self.filepath)
         except exceptions.ArchiveError as e:
             raise unf_exception.UnfoldError(f"Error opening archive: {e}") from e
         except requests.RequestException as e:
-            raise unf_exception.UnfoldError(
-                f"Error fetching remote archive: {e}"
-            ) from e
+            raise unf_exception.UnfoldError(f"Error fetching archive: {e}") from e
 
         return [self._build_node(entry) for entry in file_list]
 
@@ -78,7 +67,7 @@ class SevenZipAdapter(BaseAdapter):
         7z file doesn't allow us to download it partially
         and fetch only file list.
         """
-        content = self.make_request(url)
+        content = self.get_file_content(url)
 
         archive = py7zr.SevenZipFile(BytesIO(content))
 

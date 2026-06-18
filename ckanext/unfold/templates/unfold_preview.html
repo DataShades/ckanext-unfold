@@ -41,18 +41,14 @@
     <div id="archive-tree" data-module="unfold-init-jstree"
         data-module-resource-id="{{ resource.id }}"
         data-module-resource-view-id="{{ resource_view.id }}"
-        data-module-resource-url="{{ resource.url }}"
-        data-module-resource-remote="{{ resource.url_type not in ('upload', 'file') }}"
-        data-module-resource-format="{{ resource.format }}"
         data-module-show-context-menu="{{ (show_context_menu_default if resource_view.show_context_menu is undefined else resource_view.show_context_menu) | tojson }}">
         <div id="archive-tree--loader" class="ms-4">
             {{ _("Loading ...") }}
         </div>
-    </div>
-
-    <div id="archive-tree-error" style="display: none">
-        <img src="{{ h.url_for_static('/error.gif') }}" width="30">
-        <span></span>
+        <div id="archive-tree-error" class="fw-normal" style="display: none">
+            <img src="{{ h.url_for_static('/error.gif') }}" width="30">
+            <span></span>
+        </div>
     </div>
 </div>
 

@@ -1,13 +1,11 @@
 from __future__ import annotations
 
 import logging
-import tarfile
 from datetime import datetime as dt
 from io import BytesIO
-from tarfile import TarError, TarFile, TarInfo
-from typing import Any
+from tarfile import TarError, TarInfo, open as tar_open
+from typing import Any, Literal
 
-import requests
 
 import ckan.plugins.toolkit as tk
 
@@ -20,24 +18,13 @@ log = logging.getLogger(__name__)
 
 
 class TarAdapter(BaseAdapter):
-    def get_node_list(self) -> list[unf_types.Node]:
-        return self._build_directory_tree(self.filepath, self.remote, "r")
+    mode: Literal["r", "r:gz", "r:xz", "r:bz2"] = "r"
 
-    def _build_directory_tree(
-        self, filepath: str, remote: bool = False, mode: str | None = None
-    ):
+    def get_node_list(self) -> list[unf_types.Node]:
         try:
-            if remote:
-                file_list = self.get_file_list_from_url(filepath)
-            else:
-                with tarfile.open(filepath, mode) as archive:  # type: ignore
-                    file_list: list[TarInfo] = archive.getmembers()
+            file_list = self.get_file_list_from_url(self.filepath)
         except TarError as e:
             raise unf_exception.UnfoldError(f"Error opening archive: {e}") from e
-        except requests.RequestException as e:
-            raise unf_exception.UnfoldError(
-                f"Error fetching remote archive: {e}"
-            ) from e
 
         return [self._build_node(entry) for entry in file_list]
 
@@ -72,21 +59,18 @@ class TarAdapter(BaseAdapter):
         and fetch only file list, because the information
         about each file is stored at the beginning of the file
         """
-        content = self.make_request(url)
+        content = self.get_file_content(url)
 
-        return TarFile(fileobj=BytesIO(content)).getmembers()
+        return tar_open(fileobj=BytesIO(content), mode=self.mode).getmembers()
 
 
 class TarGzAdapter(TarAdapter):
-    def get_node_list(self) -> list[unf_types.Node]:
-        return self._build_directory_tree(self.filepath, self.remote, "r:gz")
+    mode = "r:gz"
 
 
 class TarXzAdapter(TarAdapter):
-    def get_node_list(self) -> list[unf_types.Node]:
-        return self._build_directory_tree(self.filepath, self.remote, "r:xz")
+    mode = "r:xz"
 
 
 class TarBz2Adapter(TarAdapter):
-    def get_node_list(self) -> list[unf_types.Node]:
-        return self._build_directory_tree(self.filepath, self.remote, "r:bz2")
+    mode = "r:bz2"

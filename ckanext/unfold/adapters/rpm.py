@@ -4,7 +4,6 @@ import logging
 from io import BytesIO
 from typing import Any
 
-import requests
 from rpmfile import RPMFile, RPMInfo
 
 import ckanext.unfold.exception as unf_exception
@@ -18,17 +17,9 @@ log = logging.getLogger(__name__)
 class RpmAdapter(BaseAdapter):
     def get_node_list(self) -> list[unf_types.Node]:
         try:
-            if self.remote:
-                file_list = self.get_file_list_from_url(self.filepath)
-            else:
-                with RPMFile(self.filepath, "rb") as archive:
-                    file_list: list[RPMInfo] = archive.getmembers()
+            file_list = self.get_file_list_from_url(self.filepath)
         except (NotImplementedError, KeyError) as e:
             raise unf_exception.UnfoldError(f"Error opening archive: {e}") from e
-        except requests.RequestException as e:
-            raise unf_exception.UnfoldError(
-                f"Error fetching remote archive: {e}"
-            ) from e
 
         nodes = [self._build_node(entry) for entry in file_list]
 
@@ -60,7 +51,7 @@ class RpmAdapter(BaseAdapter):
         and fetch only file list, because the information
         about each file is stored at the beggining of the file
         """
-        content = self.make_request(url)
+        content = self.get_file_content(url)
 
         return RPMFile(fileobj=BytesIO(content)).getmembers()
 

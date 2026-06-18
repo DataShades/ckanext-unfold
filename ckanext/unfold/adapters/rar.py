@@ -6,7 +6,6 @@ from io import BytesIO
 from typing import Any
 
 import rarfile
-import requests
 from rarfile import Error as RarError
 from rarfile import RarInfo
 
@@ -23,27 +22,9 @@ log = logging.getLogger(__name__)
 class RarAdapter(BaseAdapter):
     def get_node_list(self) -> list[unf_types.Node]:
         try:
-            if self.remote:
-                file_list = self.get_file_list_from_url(self.filepath)
-            else:
-                with rarfile.RarFile(self.filepath) as archive:
-                    needs_password = archive.needs_password()
-
-                    if needs_password and not self.resource_view.get("archive_pass"):
-                        raise unf_exception.UnfoldError(
-                            "Error. Archive is protected with password"
-                        )
-
-                    if needs_password:
-                        archive.setpassword(self.resource_view["archive_pass"])
-
-                    file_list: list[RarInfo] = archive.infolist()
+            file_list = self.get_file_list_from_url(self.filepath)
         except RarError as e:
             raise unf_exception.UnfoldError(f"Error opening archive: {e}") from e
-        except requests.RequestException as e:
-            raise unf_exception.UnfoldError(
-                f"Error fetching remote archive: {e}"
-            ) from e
 
         if not file_list:
             raise unf_exception.UnfoldError(
@@ -57,12 +38,17 @@ class RarAdapter(BaseAdapter):
 
         Rar file doesn't allow us to download it partially and fetch only file list.
         """
-        content = self.make_request(url)
+        content = self.get_file_content(url)
 
         archive = rarfile.RarFile(BytesIO(content))
 
-        if archive.needs_password():
+        needs_password = archive.needs_password()
+
+        if needs_password and not self.resource_view.get("archive_pass"):
             raise unf_exception.UnfoldError("Error. Archive is protected with password")
+
+        if needs_password:
+            archive.setpassword(self.resource_view["archive_pass"])
 
         return archive.infolist()
 

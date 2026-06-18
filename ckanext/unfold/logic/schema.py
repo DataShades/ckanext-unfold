@@ -17,19 +17,14 @@ def get_preview_schema(
 
 
 @validator_args
-def get_archive_structure(  # noqa: PLR0913
+def get_archive_structure(
     not_empty: types.Validator,
     unicode_safe: types.Validator,
     resource_id_exists: types.Validator,
     resource_view_id_exists: types.Validator,
-    url_validator: types.Validator,
-    boolean_validator: types.Validator,
     ignore_empty: types.Validator,
 ) -> types.Schema:
     return {
         "id": [not_empty, unicode_safe, resource_id_exists],
         "view_id": [ignore_empty, unicode_safe, resource_view_id_exists],
-        "url": [not_empty, unicode_safe, url_validator],
-        "is_remote": [not_empty, boolean_validator],
-        "format": [not_empty, unicode_safe],
     }
