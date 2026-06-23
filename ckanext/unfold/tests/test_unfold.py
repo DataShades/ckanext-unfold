@@ -4,6 +4,7 @@ import re
 import pytest
 
 from ckanext.unfold import types, utils
+from ckanext.unfold.adapters import base
 
 DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
 BASE_URL = "http://archives.test/"
@@ -40,6 +41,28 @@ def _range_response(data: bytes):
         context.headers["Content-Length"] = str(len(chunk))
 
         return chunk
+
+    return _callback
+
+
+def _range_rejecting_response(data: bytes):
+    """Build a callback that rejects any Range request with 416.
+
+    Mimics servers (e.g. some Werkzeug-served downloads) that reply
+    ``416 Requested Range Not Satisfiable`` to a suffix range larger than the
+    file instead of returning the whole file. A request without a Range gets a
+    full 200 response.
+    """
+    size = len(data)
+
+    def _callback(request, context):
+        if request.headers.get("Range"):
+            context.status_code = 416
+            return b""
+
+        context.status_code = 200
+        context.headers["Content-Length"] = str(size)
+        return data
 
     return _callback
 
@@ -93,6 +116,56 @@ def test_build_tree(archive_url, file_format: str, num_nodes: int):
     tree = adapter_instance.build_archive_tree()
 
     assert len(tree) == num_nodes
+    assert isinstance(tree[0], types.Node)
+
+
+@pytest.mark.usefixtures("with_request_context")
+def test_zip_falls_back_to_full_download_on_416(requests_mock):
+    """A server that 416s the suffix-range request still builds the tree."""
+    with open(os.path.join(DATA_DIR, "test_archive.zip"), "rb") as fp:
+        data = fp.read()
+
+    url = BASE_URL + "test_archive.zip"
+    requests_mock.get(url, content=_range_rejecting_response(data))
+
+    adapter = utils.get_adapter_for_resource({"format": "zip"})
+    adapter_instance = adapter({}, {}, filepath=url)  # type: ignore
+    tree = adapter_instance.build_archive_tree()
+
+    assert len(tree) == 11
+    assert isinstance(tree[0], types.Node)
+
+
+@pytest.mark.usefixtures("with_request_context")
+def test_zip_reads_local_upload_from_storage(monkeypatch):
+    """A locally uploaded archive is read via CKAN storage, not over HTTP."""
+    with open(os.path.join(DATA_DIR, "test_archive.zip"), "rb") as fp:
+        data = fp.read()
+
+    class FakeStorage:
+        def content(self, file_data):
+            return data
+
+    class FakeUploader:
+        storage = FakeStorage()
+
+        def get_path(self, id):
+            return "resource/location"
+
+    monkeypatch.setattr(
+        base.uploader, "get_resource_uploader", lambda resource: FakeUploader()
+    )
+
+    resource = {
+        "id": "res-id",
+        "format": "zip",
+        "url_type": "upload",
+        "size": str(len(data)),
+    }
+    adapter = utils.get_adapter_for_resource(resource)
+    tree = adapter(resource, {}).build_archive_tree()  # type: ignore
+
+    assert len(tree) == 11
     assert isinstance(tree[0], types.Node)
 
 

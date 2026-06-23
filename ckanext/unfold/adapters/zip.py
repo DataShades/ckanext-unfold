@@ -28,7 +28,10 @@ TAIL_GROWTH_FACTOR = 4
 class ZipAdapter(BaseAdapter):
     def get_node_list(self) -> list[unf_types.Node]:
         try:
-            file_list = self.get_file_list_from_url(self.filepath)
+            if self.is_upload:
+                file_list = ZipFile(BytesIO(self.get_file_content())).infolist()
+            else:
+                file_list = self.get_file_list_from_url(self.filepath)
         except (LargeZipFile, BadZipFile) as e:
             raise unf_exception.UnfoldError(f"Error opening archive: {e}") from e
 
@@ -105,6 +108,12 @@ class ZipAdapter(BaseAdapter):
                 timeout=DEFAULT_TIMEOUT,
                 stream=True,
             ) as resp:
+                # Some servers reject a suffix range larger than the file with
+                # 416 instead of returning the whole file (e.g. archives
+                # smaller than the tail window). Fall back to a full download.
+                if resp.status_code == requests.codes.requested_range_not_satisfiable:
+                    return self._fetch_full(url)
+
                 resp.raise_for_status()
 
                 ranged = resp.status_code == 206
@@ -126,6 +135,27 @@ class ZipAdapter(BaseAdapter):
             ) from e
 
         return content, total if total is not None else len(content), ranged
+
+    def _fetch_full(self, url: str) -> tuple[bytes, int, bool]:
+        """Fetch the whole remote file without a Range request.
+
+        Used as a fallback when the server does not support suffix ranges.
+        Returns the content, total size, and ``False`` for ``ranged``.
+        """
+        try:
+            with requests.get(url, timeout=DEFAULT_TIMEOUT, stream=True) as resp:
+                resp.raise_for_status()
+
+                total = self._content_length(resp.headers.get("content-length"))
+                self.enforce_size_limit(total)
+
+                content = resp.content
+        except requests.RequestException as e:
+            raise unf_exception.UnfoldError(
+                f"Error fetching remote archive: {e}"
+            ) from e
+
+        return content, total if total is not None else len(content), False
 
     @staticmethod
     def _total_size_from_content_range(content_range: str | None) -> int | None:

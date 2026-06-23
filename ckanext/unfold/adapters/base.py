@@ -5,6 +5,8 @@ from typing import Any
 
 import requests
 
+import ckan.lib.files as files
+import ckan.lib.uploader as uploader
 
 import ckanext.unfold.config as unf_config
 import ckanext.unfold.exception as unf_exception
@@ -38,6 +40,10 @@ class BaseAdapter:
             )
 
         return resource_url
+
+    @property
+    def is_upload(self) -> bool:
+        return self.resource.get("url_type") == "upload"
 
     def build_archive_tree(self) -> list[unf_types.Node]:
         self.validate_size_limit()
@@ -75,14 +81,22 @@ class BaseAdapter:
         )
 
     def get_file_content(self, url: str | None = None) -> bytes:
-        """Download a remote file and return its content as bytes.
+        """Return the resource's content as bytes.
 
-        Defaults to ``self.filepath`` when no URL is given. The size is
-        enforced against the configured maximum: the advertised
-        Content-Length is rejected up front, and the download is aborted once
-        the bytes read exceed the limit (in case Content-Length is missing or
-        wrong), so an over-limit archive is never fully loaded into memory.
+        Locally uploaded resources are read straight from CKAN storage,
+        avoiding an authenticated HTTP request to CKAN's own download endpoint
+        (which fails for private datasets with 403). Remote resources are
+        downloaded over HTTP.
+
+        For remote downloads the size is enforced against the configured
+        maximum: the advertised Content-Length is rejected up front, and the
+        download is aborted once the bytes read exceed the limit (in case
+        Content-Length is missing or wrong), so an over-limit archive is never
+        fully loaded into memory.
         """
+        if self.is_upload:
+            return self._read_upload()
+
         url = url or self.filepath
 
         try:
@@ -104,6 +118,22 @@ class BaseAdapter:
             raise unf_exception.UnfoldError(f"Error fetching archive: {e}") from e
 
         return b"".join(chunks)
+
+    def _read_upload(self) -> bytes:
+        """Read a locally uploaded resource's bytes via CKAN storage.
+
+        The size is already enforced up front against the resource metadata in
+        ``validate_size_limit``.
+        """
+        upload = uploader.get_resource_uploader(self.resource)
+        location = upload.get_path(self.resource["id"])
+
+        try:
+            return upload.storage.content(files.FileData(location))
+        except files.exc.FilesError as e:
+            raise unf_exception.UnfoldError(
+                f"Error reading uploaded archive: {e}"
+            ) from e
 
     @staticmethod
     def _content_length(content_length: str | None) -> int | None:
