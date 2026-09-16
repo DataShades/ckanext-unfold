@@ -35,9 +35,11 @@ class SevenZipAdapter(BaseAdapter):
         file list.
         """
         content = self.get_file_content()
-        archive = py7zr.SevenZipFile(BytesIO(content))
+        password = self.resource_view.get("archive_pass") or None
+        archive = py7zr.SevenZipFile(BytesIO(content), password=password)
 
-        if archive.needs_password():
+
+        if archive.needs_password() and not password:
             raise unf_exception.UnfoldError("Error. Archive is protected with password")
 
         return [self._to_entry(info) for info in archive.list()]

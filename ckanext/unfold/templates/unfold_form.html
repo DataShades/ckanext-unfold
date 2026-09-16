@@ -1,6 +1,8 @@
 {% import 'macros/form.html' as form %}
 
-{{ form.input('archive_pass', label=_("Password"), id='field-password', type="password", value=data.archive_pass, error=errors.archive_pass) }}
+{% call form.input('archive_pass', label=_("Password"), id='field-password', type="password", value=data.archive_pass, error=errors.archive_pass) %}
+{{ form.info(_("Used for RAR and 7z archives only. Ignored for other formats.")) }}
+{% endcall %}
 
 {{ form.select(
     'show_context_menu',

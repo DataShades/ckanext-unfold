@@ -33,7 +33,7 @@ class Node:
     state: dict[str, bool] = field(default_factory=lambda: {"opened": True})
     data: dict[str, Any] = field(default_factory=dict)
     li_attr: dict[str, str] | None = None
-    a_attr: dict[str, str] | None = field(default_factory=lambda: {"tabindex": "0"})
+    a_attr: dict[str, str] | None = None
     children: bool = False
 
 

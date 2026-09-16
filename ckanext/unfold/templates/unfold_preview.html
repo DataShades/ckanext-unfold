@@ -1,63 +1,76 @@
-<div class="unfold-preview">
+{#
+  CKAN renders a resource view inside <body>, so the assets declared at the
+  bottom of this template are emitted after the markup: for a moment the widget
+  would paint with the theme's bare form styles - stacked buttons, a stray
+  label colon, no columns - and then jump into place. This rule keeps it
+  invisible until unfold.css, later in the cascade, turns it back on.
+#}
+<style>.unfold-preview{visibility:hidden}</style>
+
+<div class="unfold-preview" data-module="unfold-init-jstree"
+    data-module-resource-id="{{ resource.id }}"
+    data-module-resource-view-id="{{ resource_view.id }}"
+    data-module-page-size="{{ page_size }}"
+    data-module-show-context-menu="{{ (show_context_menu_default if resource_view.show_context_menu is undefined else resource_view.show_context_menu) | tojson }}">
+
     <div class="ckanext-jstree-search">
+        {# the input carries its own accessible name, so no label is needed #}
         <div class="jstree-search--input">
-            <label class="d-none" for="jstree-search">{{ _('Search') }}</label>
-            <input id="jstree-search" class="form-control" type="text" name="jstree-search"
-                placeholder="{{ _('Search') }}" aria-label="{{ _('Search') }}" />
-            <button class="jstree-search-clear text-muted" type="button" id="jstree-search-clear"
-                title="{{ _('Clear search') }}" aria-label="{{ _('Clear search') }}" style="display: none">
-                <i class="fa fa-close"></i>
+            <input class="unf-search-input form-control" type="text" name="jstree-search" autocomplete="off"
+                placeholder="{{ _('Search') }}" aria-label="{{ _('Search the archive') }}" disabled />
+            <button class="jstree-search-clear text-muted" type="button"
+                title="{{ _('Clear search') }}" aria-label="{{ _('Clear search') }}" hidden>
+                <i class="fa fa-close" aria-hidden="true"></i>
             </button>
         </div>
 
-        <button class="btn btn-sm" type="button" id="jstree-search-run" title="{{ _('Search') }}" aria-label="{{ _('Search') }}"><i
-                class="fa fa-search"></i>
-        </button>
-
-        <button class="btn btn-sm" type="button" id="jstree-expand-all" title="{{ _('Expand all folders') }}" aria-label="{{ _('Expand all folders') }}">
-            <i class="fa fa-folder-open"></i>
-        </button>
-        <button class="btn btn-sm" type="button" id="jstree-collapse-all" title="{{ _('Collapse all folders') }}" aria-label="{{ _('Collapse all folders') }}">
-            <i class="fa fa-folder"></i>
-        </button>
-
-        <div class="unfold-load-state btn btn-sm">
-            <img src="{{ h.url_for_static('/spinner.gif') }}" width="20" alt="{{ _('Loading') }}">
+        <div class="unf-tree-actions">
+            <button class="unf-search-run btn btn-sm" type="button" title="{{ _('Search') }}"
+                aria-label="{{ _('Search') }}" disabled>
+                <i class="fa fa-search" aria-hidden="true"></i>
+            </button>
+            <button class="unf-expand-all btn btn-sm" type="button" title="{{ _('Expand all folders') }}"
+                aria-label="{{ _('Expand all folders') }}" disabled>
+                <i class="fa fa-folder-open" aria-hidden="true"></i>
+            </button>
+            <button class="unf-collapse-all btn btn-sm" type="button" title="{{ _('Collapse all folders') }}"
+                aria-label="{{ _('Collapse all folders') }}" disabled>
+                <i class="fa fa-folder" aria-hidden="true"></i>
+            </button>
         </div>
 
-        <span class="unfold-tree-meta text-muted align-self-center" aria-live="polite"></span>
+        <span class="unfold-load-state" role="status">
+            <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+            <span class="visually-hidden">{{ _('Loading') }}</span>
+        </span>
+
+        <span class="unfold-tree-meta text-muted" aria-live="polite"></span>
     </div>
 
-    <div class="pseudo-table-header">
-        <div class="unf-cell unf-cell-name">
-            {{ _("Name") }}
-        </div>
-        <div class="unf-cell unf-cell-size">
-            {{ _("Size") }}
-        </div>
-        <div class="unf-cell unf-cell-modified-at">
-            {{ _("Date Modified") }}
-        </div>
-    </div>
-
-    <div id="archive-search-results" class="unfold-search-results" style="display: none" aria-live="polite"></div>
-
-    {# Both blocks must stay outside #archive-tree: jstree replaces the
-       container's content when it initialises. #}
-    <div id="archive-tree--loader" class="ms-4">
-        {{ _("Loading ...") }}
-    </div>
-    <div id="archive-tree-error" class="fw-normal mb-3" role="alert" style="display: none">
-        <img src="{{ h.url_for_static('/error.gif') }}" width="30" alt="">
+    <div class="unf-tree-error alert alert-danger" role="alert" hidden>
+        <i class="fa fa-exclamation-triangle" aria-hidden="true"></i>
         <span class="unfold-error-message"></span>
-        <button class="btn btn-sm" type="button" id="archive-tree-retry" style="display: none">{{ _("Retry") }}</button>
+        <button class="unf-tree-retry btn btn-sm btn-outline-danger" type="button" hidden>{{ _("Retry") }}</button>
     </div>
 
-    <div id="archive-tree" data-module="unfold-init-jstree"
-        data-module-resource-id="{{ resource.id }}"
-        data-module-resource-view-id="{{ resource_view.id }}"
-        data-module-page-size="{{ page_size }}"
-        data-module-show-context-menu="{{ (show_context_menu_default if resource_view.show_context_menu is undefined else resource_view.show_context_menu) | tojson }}"></div>
+    {# header and body are one panel, so a fatal error can hide both at once #}
+    <div class="unfold-panel">
+        <div class="pseudo-table-header">
+            <div class="unf-cell unf-cell-name">
+                {{ _("Name") }}
+            </div>
+            <div class="unf-cell unf-cell-size d-none d-md-block">
+                {{ _("Size") }}
+            </div>
+            <div class="unf-cell unf-cell-modified-at d-none d-md-block">
+                {{ _("Date Modified") }}
+            </div>
+        </div>
+
+        <div class="unfold-search-results" aria-live="polite" hidden></div>
+
+        <div class="unf-tree"></div>
+    </div>
 </div>
 
 {% asset 'unfold/unfold-js' %}

@@ -35,12 +35,24 @@ class RarAdapter(BaseAdapter):
         if needs_password:
             archive.setpassword(self.resource_view["archive_pass"])
 
-        file_list = archive.infolist()
+        try:
+            file_list = archive.infolist()
+        except rarfile.RarWrongPassword as e:
+            raise unf_exception.UnfoldError(
+                "Error. The archive password is incorrect"
+            ) from e
 
         if not file_list:
-            raise unf_exception.UnfoldError(
-                "Error. The archive is either empty or the password is incorrect."
-            )
+            # RAR3-style archives can fail a wrong password silently (no
+            # exception, just an empty listing) rather than raising
+            # RarWrongPassword above, which only fires when the header
+            # carries a check value to verify against.
+            if needs_password:
+                raise unf_exception.UnfoldError(
+                    "Error. The archive password is incorrect"
+                )
+
+            raise unf_exception.UnfoldError("Error. The archive is empty")
 
         return [self._to_entry(info) for info in file_list]
 

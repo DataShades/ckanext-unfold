@@ -1,8 +1,21 @@
 $image-path: "../../images";
+$unf-col-size: 90px;
+$unf-col-modified: 160px;
+$unf-col-gap: 0.75rem;
+$unf-border: 1px solid #e3d3d3;
+$unf-radius: 4px;
+
+.unfold-preview {
+    // Paired with the inline rule at the top of unfold_preview.html. This
+    // stylesheet is emitted after the markup.
+    visibility: visible;
+}
 
 .ckanext-jstree-search {
     margin-bottom: 12px;
     display: flex;
+    flex-wrap: wrap;
+    align-items: center;
     gap: 12px;
 
     $height: 35px;
@@ -10,41 +23,147 @@ $image-path: "../../images";
     .jstree-search--input {
         display: flex;
         position: relative;
-        flex-basis: 350px;
         height: $height;
+    }
 
-        .form-control {
-            // room for the clear button so typed text never runs under it
-            padding-right: 2rem;
+    .form-control {
+        // room for the clear button so typed text never runs under it
+        padding-right: 2rem;
+    }
+
+    .jstree-search-clear {
+        position: absolute;
+        top: 0;
+        right: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 2rem;
+        height: 100%;
+        padding: 0;
+        border: 0;
+        background: transparent;
+
+        &:hover,
+        &:focus-visible {
+            color: var(--bs-body-color);
+        }
+    }
+
+    .unf-tree-actions {
+        display: flex;
+        gap: 4px;
+    }
+
+    .unfold-load-state {
+        display: inline-flex;
+        align-items: center;
+        color: var(--bs-secondary-color, #6c757d);
+    }
+}
+
+.unf-tree-error {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 12px;
+
+    .unf-tree-retry {
+        margin-left: auto;
+        flex-shrink: 0;
+    }
+}
+
+.unfold-result-path {
+    max-width: 60ch;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.pseudo-table-header {
+    display: flex;
+    column-gap: 1rem;
+    font-weight: bold;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid #ced4da;
+    border-radius: $unf-radius $unf-radius 0 0;
+    border-bottom: unset;
+
+    .unf-cell  {
+        &.unf-cell-size {
+            margin-left: auto;
         }
 
-        .jstree-search-clear {
-            position: absolute;
-            top: 0;
-            right: 0;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            width: 2rem;
-            height: 100%;
-            padding: 0;
-            border: 0;
-            background: transparent;
-
-            &:hover,
-            &:focus-visible {
-                color: var(--bs-body-color);
-            }
+        &.unf-cell-modified-at {
+            margin-left: 2rem;
         }
     }
 }
 
-.jstree-default {
-    .jstree-search {
-        font-style: normal !important;
-    }
+.unfold-search-results,
+.unf-tree {
+    border: $unf-border;
+    border-radius: 0 0 $unf-radius $unf-radius;
+    padding: 0.5rem 0.75rem;
+    max-height: min(70vh, 700px);
+    overflow: auto;
+}
 
-    &>.jstree-no-dots {
+// Until jstree fills the container - which it does as soon as its own
+// "Loading ..." row is rendered - the panel would be a blank box.
+.unf-tree:empty:before {
+    content: "";
+    display: block;
+    height: 1rem;
+    border-radius: $unf-radius;
+    background: linear-gradient(90deg, #f2efea 25%, #e9e2da 50%, #f2efea 75%) 0 0 / 200% 100%;
+    animation: unfold-skeleton 1.2s ease-in-out infinite;
+}
+
+@keyframes unfold-skeleton {
+    to {
+        background-position: -200% 0;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .unf-tree:empty:before {
+        animation: none;
+    }
+}
+
+// jstree's own "Loading ..." row, shown until the first response arrives
+.jstree-initial-node > .jstree-anchor {
+    color: var(--bs-secondary-color, #6c757d);
+    font-style: italic;
+}
+
+.jstree-node .jstree-anchor,
+.unfold-result {
+    display: inline-flex;
+    align-items: center;
+    width: 98%;
+
+    .unfold-node-metadata {
+        margin-left: auto;
+
+        .unfold-node-modified-at {
+            margin-left: 2rem;
+        }
+    }
+}
+
+.unfold-result {
+    width: 100%;
+
+    .unfold-result-icon {
+        margin-right: 0.5rem;
+    }
+}
+
+.jstree-default {
+        &>.jstree-no-dots {
 
         .jstree-open,
         .jstree-closed {
@@ -83,146 +202,10 @@ $image-path: "../../images";
             }
         }
     }
-
-    .jstree-search {
-        background: bisque;
-    }
-
-    .jstree-anchor {
-        &[aria-expanded="true"] {
-            .jstree-icon:before {
-                content: "\f07c";
-            }
-        }
-    }
 }
 
-#archive-tree {
-    margin-bottom: 1rem;
-    height: 700px;
-    overflow-y: scroll;
-}
-
-#archive-tree-error {
-    padding: 10px;
-    border: 1px solid #ced4da;
-    border-radius: 0.25rem;
-}
-
-.jstree-anchor {
-    display: inline-flex !important;
-    width: 97% !important;
-}
-
-.unfold-node-metadata {
-    margin-left: auto;
-
-    .unfold-node-size {
-        margin-right: 2rem;
-    }
-}
-
-.pseudo-table-header {
-    display: flex;
-    font-weight: bold;
-    padding: 0.25rem 0.75rem;
-    border-bottom: 1px solid #ced4da;
-    margin-bottom: 0.5rem;
-}
-
-.unf-cell-size {
-    margin-left: auto;
-    min-width: 90px;
-}
-
-.unf-cell-modified-at {
-    min-width: 160px;
-}
-
-@mixin context-ul {
-    background: var(--bs-white);
-    box-shadow: var(--bs-box-shadow);
-    border: 0;
-    border-radius: 3px;
-
-    li {
-        padding: 0;
-        border: 0;
-
-        a {
-            padding: 0 1.2rem;
-            border: 0;
-            background: transparent;
-
-            &:hover {
-                background-color: var(--bs-light);
-            }
-
-            i,
-            .vakata-contextmenu-sep {
-                display: none;
-            }
-
-            ins,
-            span {
-                display: none;
-                border: 0 !important
-            }
-        }
-    }
-}
-
-
-ul.vakata-context {
-    z-index: 5;
-    padding: 0;
-    min-width: 150px;
-    font-size: 1rem;
-
-    @include context-ul;
-
-    li ul {
-        @include context-ul;
-    }
-
-    .vakata-context-separator a {
-        margin: 0;
-        border: 0;
-        height: 2px;
-        background-color: #d0d5dd;
-    }
-}
-
-.unfold-search-results {
-    margin-bottom: 1rem;
-    max-height: 700px;
-    overflow-y: auto;
-
-    .unfold-result {
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-        padding: 0.25rem 0.75rem;
-        border-bottom: 1px solid #eef0f2;
-
-        .unfold-result-path {
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-        }
-
-        .unfold-node-metadata {
-            margin-left: auto;
-            white-space: nowrap;
-        }
-
-        &--empty {
-            color: #6c757d;
-        }
-    }
-}
-
-.jstree-default .unfold-load-more > .jstree-anchor {
-    font-style: italic;
-    color: #0d6efd;
+.jstree-default .jstree-clicked {
+    box-shadow: unset;
+    background: #f2efea;
+    border-radius: 0;
 }

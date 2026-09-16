@@ -8,6 +8,7 @@ ckan.module("unfold-init-jstree", function ($, _) {
             searchShowOnlyMatches: true,
             searchCloseOpenedOnClear: false,
             searchLimit: 200,
+            searchDebounce: 250,
             pageSize: 500,
             showContextMenu: true,
         },
@@ -15,35 +16,44 @@ ckan.module("unfold-init-jstree", function ($, _) {
         initialize: function () {
             $.proxyAll(this, /_/);
 
-            this.tree = $(this.el);
-            this.loader = $("#archive-tree--loader");
-            this.errorBlock = $("#archive-tree-error");
+            this.el.css("visibility", "visible");
+
+            this.panel = this.el.find(".unfold-panel");
+            this.tree = this.el.find(".unf-tree");
+            this.errorBlock = this.el.find(".unf-tree-error");
             this.errorMessage = this.errorBlock.find(".unfold-error-message");
-            this.retryButton = $("#archive-tree-retry");
+            this.retryButton = this.el.find(".unf-tree-retry");
             // re-runs the request whose failure is currently displayed
             this.retry = null;
-            this.loadState = $(".unfold-load-state");
-            this.meta = $(".unfold-tree-meta");
-            this.expandAll = $("#jstree-expand-all");
-            this.results = $("#archive-search-results");
-            this.searchInput = $("#jstree-search");
-            this.searchClear = $("#jstree-search-clear");
+            this.loadState = this.el.find(".unfold-load-state");
+            this.meta = this.el.find(".unfold-tree-meta");
+            this.expandAll = this.el.find(".unf-expand-all");
+            this.results = this.el.find(".unfold-search-results");
+            this.searchInput = this.el.find(".unf-search-input");
+            this.searchClear = this.el.find(".jstree-search-clear");
+            this.controls = this.el.find(
+                ".unf-search-input, .unf-search-run, .unf-expand-all, .unf-collapse-all"
+            );
             // "full": every node is in the DOM; "lazy": folders load on open
             this.mode = null;
             this.total = 0;
             // lazy mode: how many children each folder currently shows
             this.folderLimits = {};
 
-            this.searchInput.on("input", this._toggleSearchClear);
-            this.searchInput.on("change", (e) => this._search($(e.target).val()));
-            $("#jstree-search-run").click(() => this._search(this.searchInput.val()));
+            const debouncedSearch = this._debounce(this._search, this.options.searchDebounce);
+
+            this.searchInput.on("input", (e) => {
+                this._toggleSearchClear();
+                debouncedSearch($(e.target).val());
+            });
+            this.el.find(".unf-search-run").click(() => this._search(this.searchInput.val()));
             this.searchClear.click(() => {
                 this.searchInput.val("").trigger("focus");
                 this._toggleSearchClear();
                 this._clearSearch();
             });
             this.expandAll.click(() => this.tree.jstree("open_all"));
-            $("#jstree-collapse-all").click(() => this.tree.jstree("close_all"));
+            this.el.find(".unf-collapse-all").click(() => this.tree.jstree("close_all"));
             this.retryButton.click(() => {
                 if (this.retry) {
                     this.retry();
@@ -52,6 +62,20 @@ ckan.module("unfold-init-jstree", function ($, _) {
 
             this._observeMetadata();
             this._initJsTree();
+        },
+
+        /**
+         * Returns a version of `fn` that only runs `wait` ms after the last
+         * call, so a fast typist triggers one search instead of one per
+         * keystroke.
+         */
+        _debounce: function (fn, wait) {
+            let timer = null;
+
+            return (...args) => {
+                clearTimeout(timer);
+                timer = setTimeout(() => fn(...args), wait);
+            };
         },
 
         teardown: function () {
@@ -83,7 +107,7 @@ ckan.module("unfold-init-jstree", function ($, _) {
             const instance = this.tree.jstree(true);
 
             this._clearError();
-            this.loadState.show();
+            this._setBusy(true);
 
             const limit = this.folderLimits[node.id] || this.options.pageSize;
 
@@ -95,7 +119,9 @@ ckan.module("unfold-init-jstree", function ($, _) {
                     const result = response.result;
 
                     if (result.error) {
-                        this._displayErrorReason(result.error);
+                        // the archive itself could not be read: there is no
+                        // tree to fall back to, so the panel comes down
+                        this._displayErrorReason(result.error, { fatal: node.id === "#" });
                         callback.call(instance, []);
                         return;
                     }
@@ -115,7 +141,7 @@ ckan.module("unfold-init-jstree", function ($, _) {
                             nodes.push(this._moreNode(node.id, nodes.length, result.children_total));
                         }
                     } catch (e) {
-                        this._displayErrorReason(String(e));
+                        this._displayErrorReason(String(e), { fatal: node.id === "#" });
                         nodes = [];
                     }
 
@@ -129,7 +155,7 @@ ckan.module("unfold-init-jstree", function ($, _) {
                         callback.call(instance, []);
                         this._displayErrorReason(
                             this._requestFailure(ckan.i18n._("Could not load the archive listing"), xhr),
-                            () => instance.refresh()
+                            { retry: () => instance.refresh(), fatal: true }
                         );
                         return;
                     }
@@ -137,12 +163,19 @@ ckan.module("unfold-init-jstree", function ($, _) {
                     // `false` leaves the folder unloaded, so opening it
                     // again requests it again.
                     callback.call(instance, false);
+                    // the rest of the tree is still valid, so it stays visible
                     this._displayErrorReason(
                         this._requestFailure(ckan.i18n._("Could not load folder %(name)s", { name: node.id }), xhr),
-                        () => instance.load_node(node.id, (loaded, ok) => ok && instance.open_node(loaded))
+                        { retry: () => instance.load_node(node.id, (loaded, ok) => ok && instance.open_node(loaded)) }
                     );
                 })
-                .always(() => this.loadState.hide());
+                .always(() => this._setBusy(false));
+        },
+
+        /** Toggles the toolbar spinner and the tree's busy state together. */
+        _setBusy: function (busy) {
+            this.loadState.prop("hidden", !busy);
+            this.tree.attr("aria-busy", busy ? "true" : "false");
         },
 
         _requestFailure: function (message, xhr) {
@@ -160,7 +193,6 @@ ckan.module("unfold-init-jstree", function ($, _) {
                 text: text,
                 icon: "fa fa-ellipsis-h",
                 li_attr: { class: "unfold-load-more" },
-                a_attr: { tabindex: "0" },
                 data: { load_more: true, parent: parentId },
                 children: false,
             };
@@ -177,7 +209,15 @@ ckan.module("unfold-init-jstree", function ($, _) {
         },
 
         _applyMode: function () {
+            if (!this.mode) {
+                // the root never loaded, so there is nothing to show yet
+                return;
+            }
+
             const count = this.total.toLocaleString();
+
+            this.panel.prop("hidden", false);
+            this.controls.prop("disabled", false);
 
             if (this.mode === "lazy") {
                 this.meta.text(ckan.i18n._("%(count)s entries, folders load when opened", { count: count }));
@@ -197,6 +237,8 @@ ckan.module("unfold-init-jstree", function ($, _) {
                 return;
             }
 
+            this._clearError();
+
             if (this.mode !== "lazy") {
                 this.tree.jstree("search", query);
                 return;
@@ -205,8 +247,7 @@ ckan.module("unfold-init-jstree", function ($, _) {
             // Large archive: matches may sit in folders that are not loaded
             // (or past their first page), so results are shown as a flat
             // list instead of highlighted in the tree.
-            this._clearError();
-            this.loadState.show();
+            this._setBusy(true);
 
             $.ajax({
                 url: this.sandbox.url("/api/action/search_archive_structure"),
@@ -233,11 +274,13 @@ ckan.module("unfold-init-jstree", function ($, _) {
                         this._displayErrorReason(String(e));
                     }
                 })
+                // whatever is on screen - the tree or the previous result
+                // list - is still valid, so only the message is added
                 .fail((xhr) => this._displayErrorReason(
                     this._requestFailure(ckan.i18n._("Search failed"), xhr),
-                    () => this._search(query)
+                    { retry: () => this._search(query) }
                 ))
-                .always(() => this.loadState.hide());
+                .always(() => this._setBusy(false));
         },
 
         _showResults: function (rows) {
@@ -252,21 +295,23 @@ ckan.module("unfold-init-jstree", function ($, _) {
                 const item = $("<div>", { class: "unfold-result" });
                 $("<i>", { class: row.icon + " unfold-result-icon" }).appendTo(item);
                 $("<span>", { class: "unfold-result-path", text: row.id, title: row.id }).appendTo(item);
-                $("<span>", { class: "unfold-node-metadata" })
+                $("<span>", { class: "unfold-node-metadata d-none d-md-block" })
                     .append($("<span>", { class: "unfold-node-size", text: row.size }))
                     .append($("<span>", { class: "unfold-node-modified-at", text: row.modified_at }))
                     .appendTo(item);
                 list.append(item);
             });
 
-            this.tree.hide();
-            list.show();
+            this.tree.prop("hidden", true);
+            list.prop("hidden", false);
         },
 
         _clearSearch: function () {
+            this._clearError();
+
             if (this.mode === "lazy") {
-                this.results.hide().empty();
-                this.tree.show();
+                this.results.prop("hidden", true).empty();
+                this.tree.prop("hidden", false);
             } else {
                 this.tree.jstree("clear_search");
             }
@@ -275,53 +320,36 @@ ckan.module("unfold-init-jstree", function ($, _) {
         },
 
         _toggleSearchClear: function () {
-            this.searchClear.toggle(this.searchInput.val().length > 0);
-        },
-
-        _setupKeyboardNavigation: function () {
-            // Handle TAB, SHIFT+TAB navigation
-            this.tree.on("keydown.jstree", ".jstree-anchor", (e) => {
-                if (e.key === "Tab") {
-                    e.preventDefault();
-                    this._handleTabNavigation(e.shiftKey, $(e.currentTarget));
-                }
-            });
-        },
-
-        _handleTabNavigation: function (isShiftTab, currentAnchor) {
-            // Get all visible anchors in the tree
-            const allAnchors = this.tree.find(".jstree-anchor:visible");
-            const currentIndex = allAnchors.index(currentAnchor);
-
-            let targetIndex;
-            if (isShiftTab) {
-                // Move to previous anchor, or stay at first if already there
-                targetIndex = currentIndex > 0 ? currentIndex - 1 : 0;
-            } else {
-                // Move to next anchor, or stay at last if already there
-                targetIndex = currentIndex < allAnchors.length - 1 ? currentIndex + 1 : allAnchors.length - 1;
-            }
-
-            const targetAnchor = allAnchors.eq(targetIndex);
-            targetAnchor.focus();
+            this.searchClear.prop("hidden", !this.searchInput.val().length);
         },
 
         /**
-         * Show `error` above the tree. When `retry` is given a Retry button
-         * is offered that calls it; API errors such as a wrong password
-         * pass no retry because repeating the request cannot help.
+         * Show `error` above the widget.
+         *
+         * `options.retry` adds a Retry button that calls it; API errors such
+         * as a wrong password pass none, because repeating the request cannot
+         * help. `options.fatal` means nothing was loaded at all, so the tree
+         * and its header are taken down with it - otherwise they keep showing
+         * whatever loaded before the failure.
          */
-        _displayErrorReason: function (error, retry) {
-            this.loader.hide();
-            this.retry = retry || null;
-            this.retryButton.toggle(!!retry);
+        _displayErrorReason: function (error, options) {
+            options = options || {};
+
+            this.retry = options.retry || null;
+            this.retryButton.prop("hidden", !this.retry);
             this.errorMessage.text(error);
-            this.errorBlock.show();
+            this.errorBlock.prop("hidden", false);
+
+            if (options.fatal) {
+                this.panel.prop("hidden", true);
+                this.controls.prop("disabled", true);
+                this.meta.text("");
+            }
         },
 
         _clearError: function () {
             this.retry = null;
-            this.errorBlock.hide();
+            this.errorBlock.prop("hidden", true);
         },
 
         _initJsTree: function () {
@@ -331,11 +359,8 @@ ckan.module("unfold-init-jstree", function ($, _) {
                 plugins.push("contextmenu");
             }
 
-            this.tree = $(this.el)
+            this.tree
                 .on("ready.jstree", () => {
-                    this.loader.hide();
-                    this._setupKeyboardNavigation();
-
                     if (this.total < this.options.animationThreshold) {
                         this.tree.jstree(true).settings.core.animation = 200;
                     }
@@ -352,6 +377,7 @@ ckan.module("unfold-init-jstree", function ($, _) {
                     core: {
                         data: this._loadNodes,
                         themes: { dots: false },
+                        strings: { "Loading ...": ckan.i18n._("Loading...") },
                         // animation is decided once the size is known
                         animation: 0,
                         multiple: false,
@@ -420,7 +446,7 @@ ckan.module("unfold-init-jstree", function ($, _) {
                 });
             });
 
-            this._metadataObserver.observe(this.el[0], { childList: true, subtree: true });
+            this._metadataObserver.observe(this.tree[0], { childList: true, subtree: true });
         },
 
         /**
@@ -444,7 +470,7 @@ ckan.module("unfold-init-jstree", function ($, _) {
             }
 
             const meta = document.createElement("span");
-            meta.className = "unfold-node-metadata";
+            meta.className = "unfold-node-metadata d-none d-md-block";
 
             if (data.size) {
                 const size = document.createElement("span");
