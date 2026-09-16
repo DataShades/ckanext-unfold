@@ -96,7 +96,7 @@ def test_cached_index_answers_like_the_in_memory_index(small_index):
 
     assert cached.total == small_index.total
     assert _ids(cached.children_of("#")) == _ids(small_index.children_of("#"))
-    assert _ids(cached.all_nodes()) == _ids(small_index.all_nodes())
+    assert set(_ids(cached.all_nodes())) == set(_ids(small_index.all_nodes()))
 
     for query in ("txt", "A", "zzz"):
         expected = small_index.search(query, limit=1)

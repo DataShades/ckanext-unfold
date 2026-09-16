@@ -47,6 +47,25 @@ def test_small_archive_is_returned_whole(archive_resource):
     assert node["data"]["size"] == "5.1 KB"
 
 
+def test_full_mode_never_sends_the_lazy_children_sentinel(archive_resource):
+    """A folder's ``children`` must be ``False``, never the bare ``True``.
+
+    ``True`` means "has children, not included here - fetch them lazily
+    when opened" and is only correct in lazy mode. In full mode every
+    descendant is already in this same flat response, so a folder left
+    with ``True`` reaches jstree's flat-model loader as an unconverted
+    truthy value; the moment one of its real children (a sibling entry in
+    this very batch) resolves its `parent` to it, `children.push` is
+    called on `true` and the whole tree fails to render.
+    """
+    with served(ARCHIVE):
+        result = call_action("get_archive_structure", id=archive_resource["id"])
+
+    folders = [n for n in result["nodes"] if n["id"] == "test_archive/folder 1"]
+    assert folders, "fixture archive changed: no longer has this folder"
+    assert folders[0]["children"] is False
+
+
 @pytest.mark.ckan_config("ckanext.unfold.expand_nodes_threshold", 1)
 def test_large_archive_is_served_folder_by_folder(archive_resource):
     with served(ARCHIVE):
@@ -129,7 +148,7 @@ def test_unreachable_archive_is_an_error_payload():
         result = call_action("get_archive_structure", id=resource["id"])
 
     assert list(result) == ["error"]
-    assert result["error"].startswith("Error fetching")
+    assert result["error"].startswith("Could not fetch remote archive")
 
 
 def test_view_of_another_resource_is_rejected(archive_resource):
@@ -150,7 +169,7 @@ def test_view_of_another_resource_is_rejected(archive_resource):
             "get_archive_structure", id=archive_resource["id"], view_id=view["id"]
         )
 
-    assert result == {"error": "Error. View does not belong to resource"}
+    assert result == {"error": "View does not belong to resource"}
 
 
 def test_unknown_ids_fail_validation(archive_resource):

@@ -42,7 +42,7 @@ class BaseAdapter:
 
     #: Exception types the underlying archive library raises while opening
     #: or parsing a damaged file; ``get_node_list`` turns any of these into
-    #: a plain "Error opening archive: ..." message. An adapter that needs a
+    #: a plain "Could not open archive: ..." message. An adapter that needs a
     #: different message for some errors (a password prompt, a distinct
     #: fetch failure) overrides ``get_node_list`` instead of using this.
     open_errors: tuple[type[Exception], ...] = ()
@@ -62,7 +62,7 @@ class BaseAdapter:
 
         if self.resource.get("type") == "tabledesigner":
             raise unf_exception.UnfoldError(
-                "Error. Table Designer resources are not supported"
+                tk._("Table Designer resources are not supported")
             )
 
         return resource_url
@@ -94,7 +94,7 @@ class BaseAdapter:
                 self.resource.get("format"),
                 self.filepath,
             )
-            raise unf_exception.UnfoldError("Error. Could not read the archive") from e
+            raise unf_exception.UnfoldError(tk._("Could not read the archive")) from e
 
     def validate_size_limit(self) -> None:
         archive_size = self.resource.get("size")
@@ -160,7 +160,7 @@ class BaseAdapter:
                 return storage.content(files.FileData(upload.get_path(resource_id)))
             except files.exc.FilesError as e:
                 raise unf_exception.UnfoldError(
-                    f"Error reading uploaded archive: {e}"
+                    tk._("Could not read uploaded archive: %(error)s") % {"error": e}
                 ) from e
 
         path = self._local_upload_path(upload)
@@ -171,7 +171,7 @@ class BaseAdapter:
                     return fp.read()
             except OSError as e:
                 raise unf_exception.UnfoldError(
-                    f"Error reading uploaded archive: {e}"
+                    tk._("Could not read uploaded archive: %(error)s") % {"error": e}
                 ) from e
 
         log.info(
@@ -236,14 +236,40 @@ class BaseAdapter:
         try:
             entries = self.iter_entries()
         except self.open_errors as e:
-            raise unf_exception.UnfoldError(f"Error opening archive: {e}") from e
+            raise unf_exception.UnfoldError(
+                tk._("Could not open archive: %(error)s") % {"error": e}
+            ) from e
 
         return self.build_nodes(entries)
 
     def build_nodes(self, entries: list[unf_types.Entry]) -> list[unf_types.Node]:
         """Turn entries into nodes, synthesizing any missing ancestor folders."""
-        entries = self._enforce_entry_limit(list(entries))
+        entries = self._enforce_entry_limit(self._dedupe_entries(entries))
         return [self._build_node(e) for e in self._ensure_dir_entries(entries)]
+
+    @staticmethod
+    def _dedupe_entries(entries: list[unf_types.Entry]) -> list[unf_types.Entry]:
+        """Collapse entries that share a path to the last one.
+
+        An archive can legitimately list the same path more than once - most
+        commonly a directory entry duplicated by the tool that wrote it
+        (``zipfile`` itself will happily read back what it warns about
+        writing, and real JARs built by shading/merging tools routinely
+        duplicate ``META-INF/`` this way), but also a file overwritten later
+        in the same archive. Every tool that actually extracts an archive
+        resolves that the same way: the last entry with a given name wins.
+
+        Without this, two ``Node``s sharing an ``id`` would reach the
+        browser - jstree indexes its model by id and cannot represent that,
+        so the second one silently corrupts the first one's bookkeeping
+        instead of raising a clean error.
+        """
+        deduped: dict[str, unf_types.Entry] = {}
+
+        for entry in entries:
+            deduped[entry.path.rstrip("/")] = entry
+
+        return list(deduped.values())
 
     def _enforce_entry_limit(
         self, entries: list[unf_types.Entry]

@@ -118,6 +118,37 @@ def test_build_complex_tree(archive_url):
     assert len([node for node in tree if node.parent == "#"]) == 4
 
 
+@pytest.mark.usefixtures("with_request_context")
+def test_duplicate_zip_entries_do_not_reach_the_tree_twice(serve):
+    """A directory entry duplicated in the zip must not become two nodes.
+
+    ``zipfile`` reads back exactly what it warns about writing, and real
+    JARs built by tools that merge multiple archives (shading/uber-jars)
+    routinely duplicate ``META-INF/`` this way. Two nodes sharing an id
+    would reach jstree, whose model is indexed by id and cannot represent
+    that - `assert_valid_tree`'s uniqueness check is what a browser-side
+    ``children.push is not a function`` looks like server-side.
+    """
+    buf = io.BytesIO()
+
+    with zipfile.ZipFile(buf, "w") as archive:
+        archive.writestr("META-INF/", "")
+        archive.writestr("META-INF/MANIFEST.MF", "manifest")
+        archive.writestr("META-INF/", "")  # duplicate, legal in the zip format
+        archive.writestr("com/foo/Bar.class", "class bytes")
+
+    tree = build_tree("zip", serve("dup.zip", buf.getvalue()))
+
+    assert_valid_tree(tree)
+    assert {node.id for node in tree} == {
+        "META-INF",
+        "META-INF/MANIFEST.MF",
+        "com",
+        "com/foo",
+        "com/foo/Bar.class",
+    }
+
+
 # --- corrupt input -----------------------------------------------------------
 
 
@@ -141,16 +172,19 @@ def test_corrupt_input_is_reported_or_listed(serve, file_format: str, body: byte
     """A damaged archive either lists what is readable or raises UnfoldError.
 
     Whatever happens, the caller must never see a raw library exception,
-    because only ``UnfoldError`` reaches the user as a message. Truncated
-    gzip and xz tars (``EOFError``) and corrupt rpms (``RPMError``,
-    ``struct.error``) are the cases that rely on the generic wrapper.
+    because only ``UnfoldError`` reaches the user as a message - catching
+    that specific type (and nothing broader) is what this test leans on;
+    a raw library exception would propagate past it and fail the test.
+    Truncated gzip and xz tars (``EOFError``) and corrupt rpms
+    (``RPMError``, ``struct.error``) are the cases that rely on the
+    generic wrapper.
     """
     url = serve(f"broken.{file_format}", body)
 
     try:
         tree = build_tree(file_format, url)
     except exception.UnfoldError as e:
-        assert str(e).startswith("Error"), str(e)
+        assert str(e), "UnfoldError raised with an empty message"
     else:
         if tree:
             assert_valid_tree(tree)
@@ -287,7 +321,7 @@ def test_http_error_becomes_unfold_error(requests_mock):
     url = BASE_URL + "missing.tar"
     requests_mock.get(url, status_code=404)
 
-    with pytest.raises(exception.UnfoldError, match="Error fetching archive"):
+    with pytest.raises(exception.UnfoldError, match="Could not fetch archive"):
         build_tree("tar", url)
 
 

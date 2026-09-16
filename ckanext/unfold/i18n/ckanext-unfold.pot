@@ -1,0 +1,233 @@
+# Translations template for ckanext-unfold.
+# Copyright (C) 2026 ORGANIZATION
+# This file is distributed under the same license as the ckanext-unfold project.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2026.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: ckanext-unfold 3.0.2\n"
+"Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
+"POT-Creation-Date: 2026-09-16 11:58+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.18.0\n"
+
+#: ckanext/unfold/plugin.py:43 ckanext/unfold/plugin.py:47
+msgid "Unfold"
+msgstr ""
+
+#: ckanext/unfold/adapters/_7z.py:26 ckanext/unfold/adapters/_7z.py:47
+#: ckanext/unfold/adapters/rar.py:35
+msgid "Archive is protected with password"
+msgstr ""
+
+#: ckanext/unfold/adapters/_7z.py:30 ckanext/unfold/adapters/base.py:240
+#, python-format
+msgid "Could not open archive: %(error)s"
+msgstr ""
+
+#: ckanext/unfold/adapters/base.py:65
+msgid "Table Designer resources are not supported"
+msgstr ""
+
+#: ckanext/unfold/adapters/base.py:97
+msgid "Could not read the archive"
+msgstr ""
+
+#: ckanext/unfold/adapters/base.py:163 ckanext/unfold/adapters/base.py:174
+#, python-format
+msgid "Could not read uploaded archive: %(error)s"
+msgstr ""
+
+#: ckanext/unfold/adapters/rar.py:44 ckanext/unfold/adapters/rar.py:54
+msgid "The archive password is incorrect"
+msgstr ""
+
+#: ckanext/unfold/adapters/rar.py:57
+msgid "The archive is empty"
+msgstr ""
+
+#: ckanext/unfold/adapters/remote.py:51
+#, python-format
+msgid "Archive exceeds maximum allowed size for processing: %(size)s"
+msgstr ""
+
+#: ckanext/unfold/adapters/remote.py:125 ckanext/unfold/adapters/remote.py:129
+#: ckanext/unfold/adapters/remote.py:162
+msgid "Could not fetch the archive"
+msgstr ""
+
+#: ckanext/unfold/adapters/remote.py:166
+msgid "Too many redirects while fetching the archive"
+msgstr ""
+
+#: ckanext/unfold/adapters/remote.py:199
+#, python-format
+msgid "Could not fetch archive: %(error)s"
+msgstr ""
+
+#: ckanext/unfold/adapters/remote.py:337
+#, python-format
+msgid "Reading the remote archive took longer than %(seconds)s seconds"
+msgstr ""
+
+#: ckanext/unfold/adapters/remote.py:362
+msgid "The server does not support partial downloads (HTTP Range)"
+msgstr ""
+
+#: ckanext/unfold/adapters/remote.py:372 ckanext/unfold/adapters/remote.py:445
+#, python-format
+msgid "Could not fetch remote archive: %(error)s"
+msgstr ""
+
+#: ckanext/unfold/adapters/remote.py:376
+msgid "The server returned an incomplete byte range"
+msgstr ""
+
+#: ckanext/unfold/adapters/remote.py:439
+msgid "The server returned an invalid Content-Range"
+msgstr ""
+
+#: ckanext/unfold/adapters/tar.py:51
+msgid "Archive decompresses to more than the allowed size"
+msgstr ""
+
+#: ckanext/unfold/assets/js/unfold-init-jstree.js:157
+msgid "Could not load the archive listing"
+msgstr ""
+
+#: ckanext/unfold/assets/js/unfold-init-jstree.js:168
+#, python-format
+msgid "Could not load folder %(name)s"
+msgstr ""
+
+#: ckanext/unfold/assets/js/unfold-init-jstree.js:188
+#, python-format
+msgid "Show more (%(shown)s of %(total)s shown)"
+msgstr ""
+
+#: ckanext/unfold/assets/js/unfold-init-jstree.js:223
+#, python-format
+msgid "%(count)s entries, folders load when opened"
+msgstr ""
+
+#: ckanext/unfold/assets/js/unfold-init-jstree.js:226
+msgid "Not available for large archives"
+msgstr ""
+
+#: ckanext/unfold/assets/js/unfold-init-jstree.js:228
+#, python-format
+msgid "%(count)s entries"
+msgstr ""
+
+#: ckanext/unfold/assets/js/unfold-init-jstree.js:265
+#, python-format
+msgid "%(count)s matches"
+msgstr ""
+
+#: ckanext/unfold/assets/js/unfold-init-jstree.js:268
+#, python-format
+msgid "(showing the first %(limit)s)"
+msgstr ""
+
+#: ckanext/unfold/assets/js/unfold-init-jstree.js:280
+msgid "Search failed"
+msgstr ""
+
+#: ckanext/unfold/assets/js/unfold-init-jstree.js:290
+msgid "No entries match"
+msgstr ""
+
+#: ckanext/unfold/assets/js/unfold-init-jstree.js:380
+msgid "Loading..."
+msgstr ""
+
+#: ckanext/unfold/assets/js/unfold-init-jstree.js:502
+msgid "Open URL"
+msgstr ""
+
+#: ckanext/unfold/assets/js/unfold-init-jstree.js:509
+msgid "Copy URL"
+msgstr ""
+
+#: ckanext/unfold/assets/js/unfold-init-jstree.js:518
+msgid "Collapse"
+msgstr ""
+
+#: ckanext/unfold/assets/js/unfold-init-jstree.js:518
+msgid "Expand"
+msgstr ""
+
+#: ckanext/unfold/logic/action.py:128
+msgid "View does not belong to resource"
+msgstr ""
+
+#: ckanext/unfold/templates/unfold_form.html:3
+msgid "Password"
+msgstr ""
+
+#: ckanext/unfold/templates/unfold_form.html:4
+msgid "Used for RAR and 7z archives only. Ignored for other formats."
+msgstr ""
+
+#: ckanext/unfold/templates/unfold_form.html:9
+msgid "Show context menu"
+msgstr ""
+
+#: ckanext/unfold/templates/unfold_form.html:10
+msgid "Yes"
+msgstr ""
+
+#: ckanext/unfold/templates/unfold_form.html:10
+msgid "No"
+msgstr ""
+
+#: ckanext/unfold/templates/unfold_preview.html:20
+#: ckanext/unfold/templates/unfold_preview.html:28
+#: ckanext/unfold/templates/unfold_preview.html:29
+msgid "Search"
+msgstr ""
+
+#: ckanext/unfold/templates/unfold_preview.html:20
+msgid "Search the archive"
+msgstr ""
+
+#: ckanext/unfold/templates/unfold_preview.html:22
+msgid "Clear search"
+msgstr ""
+
+#: ckanext/unfold/templates/unfold_preview.html:32
+#: ckanext/unfold/templates/unfold_preview.html:33
+msgid "Expand all folders"
+msgstr ""
+
+#: ckanext/unfold/templates/unfold_preview.html:36
+#: ckanext/unfold/templates/unfold_preview.html:37
+msgid "Collapse all folders"
+msgstr ""
+
+#: ckanext/unfold/templates/unfold_preview.html:44
+msgid "Loading"
+msgstr ""
+
+#: ckanext/unfold/templates/unfold_preview.html:53
+msgid "Retry"
+msgstr ""
+
+#: ckanext/unfold/templates/unfold_preview.html:60
+msgid "Name"
+msgstr ""
+
+#: ckanext/unfold/templates/unfold_preview.html:63
+msgid "Size"
+msgstr ""
+
+#: ckanext/unfold/templates/unfold_preview.html:66
+msgid "Date Modified"
+msgstr ""
+

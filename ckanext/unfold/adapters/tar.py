@@ -10,6 +10,8 @@ from tarfile import TarError, TarInfo
 from tarfile import open as tar_open
 from typing import IO
 
+import ckan.plugins.toolkit as tk
+
 import ckanext.unfold.config as unf_config
 import ckanext.unfold.exception as unf_exception
 import ckanext.unfold.types as unf_types
@@ -46,7 +48,7 @@ class _BoundedReader(io.RawIOBase):
 
         if self._read > self._budget:
             raise unf_exception.UnfoldError(
-                "Error. Archive decompresses to more than the allowed size"
+                tk._("Archive decompresses to more than the allowed size")
             )
 
         return chunk

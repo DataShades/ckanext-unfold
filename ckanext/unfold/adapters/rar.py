@@ -7,6 +7,8 @@ import rarfile
 from rarfile import Error as RarError
 from rarfile import RarInfo
 
+import ckan.plugins.toolkit as tk
+
 import ckanext.unfold.exception as unf_exception
 import ckanext.unfold.types as unf_types
 from ckanext.unfold.adapters.base import BaseAdapter
@@ -30,7 +32,7 @@ class RarAdapter(BaseAdapter):
         needs_password = archive.needs_password()
 
         if needs_password and not self.resource_view.get("archive_pass"):
-            raise unf_exception.UnfoldError("Error. Archive is protected with password")
+            raise unf_exception.UnfoldError(tk._("Archive is protected with password"))
 
         if needs_password:
             archive.setpassword(self.resource_view["archive_pass"])
@@ -39,7 +41,7 @@ class RarAdapter(BaseAdapter):
             file_list = archive.infolist()
         except rarfile.RarWrongPassword as e:
             raise unf_exception.UnfoldError(
-                "Error. The archive password is incorrect"
+                tk._("The archive password is incorrect")
             ) from e
 
         if not file_list:
@@ -49,10 +51,10 @@ class RarAdapter(BaseAdapter):
             # carries a check value to verify against.
             if needs_password:
                 raise unf_exception.UnfoldError(
-                    "Error. The archive password is incorrect"
+                    tk._("The archive password is incorrect")
                 )
 
-            raise unf_exception.UnfoldError("Error. The archive is empty")
+            raise unf_exception.UnfoldError(tk._("The archive is empty"))
 
         return [self._to_entry(info) for info in file_list]
 

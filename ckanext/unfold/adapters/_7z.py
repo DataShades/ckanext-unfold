@@ -6,6 +6,8 @@ from io import BytesIO
 import py7zr
 from py7zr import FileInfo, exceptions
 
+import ckan.plugins.toolkit as tk
+
 import ckanext.unfold.exception as unf_exception
 import ckanext.unfold.types as unf_types
 from ckanext.unfold.adapters.base import BaseAdapter
@@ -21,10 +23,12 @@ class SevenZipAdapter(BaseAdapter):
             # raised on open when the header itself is encrypted; not an
             # ArchiveError subclass
             raise unf_exception.UnfoldError(
-                "Error. Archive is protected with password"
+                tk._("Archive is protected with password")
             ) from e
         except exceptions.ArchiveError as e:
-            raise unf_exception.UnfoldError(f"Error opening archive: {e}") from e
+            raise unf_exception.UnfoldError(
+                tk._("Could not open archive: %(error)s") % {"error": e}
+            ) from e
 
         return self.build_nodes(entries)
 
@@ -40,7 +44,7 @@ class SevenZipAdapter(BaseAdapter):
 
 
         if archive.needs_password() and not password:
-            raise unf_exception.UnfoldError("Error. Archive is protected with password")
+            raise unf_exception.UnfoldError(tk._("Archive is protected with password"))
 
         return [self._to_entry(info) for info in archive.list()]
 

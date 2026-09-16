@@ -37,6 +37,25 @@ get_adapter_for_resource_signal = tk.signals.ckanext.signal(
 )
 
 
+class NoPreview:
+    """Sentinel a ``get_adapter_for_resource_signal`` subscriber returns to
+    mean this resource must never be previewed - see
+    :func:`get_adapter_for_resource` for the full protocol.
+
+    Unlike ``False``, which only overrides any later result and still lets
+    the default format registry decide, returning this skips the registry
+    too, so ``can_view`` reports ``False`` for the resource regardless of
+    what adapter its format would otherwise get.
+    """
+
+    def __repr__(self) -> str:
+        return "NO_PREVIEW"
+
+
+
+NO_PREVIEW = NoPreview()
+
+
 class UnfoldCacheManager:
     """Archive indexes in Redis, one hash per resource.
 
@@ -241,11 +260,38 @@ def _build_archive_tree(
 def get_adapter_for_resource(
     resource: dict[str, Any],
 ) -> type[unf_adapters.BaseAdapter] | None:
+    """Return the adapter class to use for ``resource``, or ``None`` to skip preview.
+
+    ``get_adapter_for_resource_signal.send()`` always calls every connected
+    subscriber - blinker signals have no way to short-circuit that - so this
+    is about which of their results wins, not about skipping a call. Results
+    are considered in connection order:
+
+    * an adapter class wins outright: no later result or the default
+      registry is consulted;
+    * ``None`` means this subscriber has no opinion - the next result (or,
+      if none is left, the default registry) decides instead;
+    * :data:`NO_PREVIEW` wins outright like an adapter class does, except it
+      returns ``None``, so the resource is never previewed regardless of
+      what a later subscriber or the default registry would have picked for
+      its format;
+    * ``False`` also stops looking at any later result, but - unlike
+      :data:`NO_PREVIEW` - still falls through to the default registry
+      lookup by format. It only suppresses a *later custom* adapter, not the
+      built-in one for that format.
+
+    Falls through to the default registry (``adapter_registry``) by
+    ``resource["format"]`` if every result is ``None`` (including no
+    subscribers at all).
+    """
     res_format = resource["format"].lower()
 
     for _, adapter in get_adapter_for_resource_signal.send(resource):
         if adapter is None:
             continue
+
+        if adapter is NO_PREVIEW:
+            return None
 
         if adapter is False:
             break

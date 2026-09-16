@@ -83,7 +83,7 @@ $unf-radius: 4px;
 
 .pseudo-table-header {
     display: flex;
-    column-gap: 1rem;
+    column-gap: 1.75rem;
     font-weight: bold;
     padding: 0.5rem 0.75rem;
     border: 1px solid #ced4da;
@@ -137,6 +137,25 @@ $unf-radius: 4px;
 .jstree-initial-node > .jstree-anchor {
     color: var(--bs-secondary-color, #6c757d);
     font-style: italic;
+}
+
+// The toolbar's own spinner (.unfold-load-state) already covers the loading
+// state, so jstree's own throbber.gif is dropped
+.jstree-loading > .jstree-ocl {
+    background: none !important;
+}
+
+// hide close/open buttons on the last (file)
+.jstree-node.jstree-leaf {
+    .jstree-icon.jstree-ocl {
+        display: none;
+    }
+
+    .jstree-anchor {
+        width: 100%;
+        padding-right: 0;
+        right: -2px;
+    }
 }
 
 .jstree-node .jstree-anchor,

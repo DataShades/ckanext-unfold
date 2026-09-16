@@ -94,20 +94,21 @@ class ExampleAdapter(BaseAdapter):
     def get_node_list(self) -> list[Node]:
         """Return list of nodes representing the archive structure.
 
-        Ensure, that your implementation handles both local and remote files
-        based on the `self.remote` attribute.
+        Ensure that your implementation handles both local and remote files:
+        `self.is_upload` is `True` for a local upload and `False` for a
+        remote URL.
         """
         return self.get_mock_node_list()
 
     def get_mock_node_list(self) -> list[Node]:
         return [
-            unf_types.Node(
+            Node(
                 id="example_folder/",
                 text="example_folder",
                 icon="fa fa-folder",
                 parent="#",
             ),
-            unf_types.Node(
+            Node(
                 id="example_folder/example_file.txt",
                 text="example_file.txt",
                 icon="fa fa-file-text",
@@ -122,7 +123,7 @@ class ExampleAdapter(BaseAdapter):
                     "modified_at": "26/08/2021 - 20:13",
                 },
             ),
-            unf_types.Node(
+            Node(
                 id="example_folder/example_file.pdf",
                 text="example_file.pdf",
                 icon="fa fa-file-pdf",
@@ -133,7 +134,7 @@ class ExampleAdapter(BaseAdapter):
                     "modified_at": "01/01/2024 - 00:00",
                 },
             ),
-            unf_types.Node(
+            Node(
                 id="another_file.docx",
                 text="another_file.docx",
                 icon="fa fa-file-word",
@@ -147,7 +148,7 @@ class ExampleAdapter(BaseAdapter):
         ]
 ```
 
-Then, you need to **register** your adapter using the signal. Each adapter registration function should accept a single argument, which is the adapter registry.
+Then, you need to **register** your adapter using the signal. Each adapter registration function should accept a single argument: the adapter registry *instance* (not the class - the signal sends `ckanext.unfold.adapters.adapter_registry` itself, so mutating `adapters` here changes that shared registry).
 
 ```py
 class ExamplePlugin(p.SingletonPlugin):
@@ -164,8 +165,8 @@ class ExamplePlugin(p.SingletonPlugin):
         }
 
     @classmethod
-    def _register_format_adapters(cls, adapters: type[unf_adapters.Registry]) -> None:
-        adapters.update({"my.format": ExampleAdapter})
+    def _register_format_adapters(cls, adapters: unf_adapters.Registry) -> None:
+        adapters.register("my.format", ExampleAdapter)
 ```
 
 Each adapter is responsible for handling a specific file format. The key in the registry dictionary is the file format, and the value is the adapter class.
@@ -180,10 +181,12 @@ The result preview will look like this:
 
 ## Getting a custom adapter for a resource
 
-Sometimes, you may want to provide a custom adapter for a specific resource based on some criteria, such as resource metadata or other attributes. Or you may want not to preview certain resources. You can do this by listening to the `unfold:get_adapter_for_resource` signal and returning your custom adapter when the criteria are met.
+Sometimes, you may want to provide a custom adapter for a specific resource based on some criteria, such as resource metadata or other attributes - or you may want to prevent certain resources from being previewed at all. You can do this by listening to the `unfold:get_adapter_for_resource` signal and returning the appropriate value when the criteria are met.
 
 ```py
 ...
+
+from ckanext.unfold.utils import NO_PREVIEW, NoPreview
 
 
 class ExamplePlugin(p.SingletonPlugin):
@@ -202,16 +205,24 @@ class ExamplePlugin(p.SingletonPlugin):
     @classmethod
     def _get_adapter_for_resource(
         cls, resource: dict[str, str]
-    ) -> type[BaseAdapter] | None | bool:
-        if resource.get("format", "").lower() == "my.format":
+    ) -> type[BaseAdapter] | None | bool | NoPreview:
+        res_format = resource.get("format", "").lower()
+
+        if res_format == "my.format":
             return ExampleAdapter
+
+        if resource.get("private_notes"):
+            return NO_PREVIEW
 
         return None
 ```
 
-1. Return an adapter class if you want to provide a custom adapter for the resource.
-2. If you return `None`, another extension may provide an adapter, or the default adapter lookup mechanism will be used.
-3. If you return `False` from the signal handler, it will prevent further processing, and no adapter will be used for that resource.
+`get_adapter_for_resource_signal.send()` always calls every connected subscriber - blinker signals have no way to short-circuit that - so the following is about which result wins, not about skipping a call:
+
+1. Return an adapter class if you want to provide a custom adapter for the resource. It wins outright: no later result or the default registry is consulted.
+2. If you return `None`, this subscriber has no opinion: the next result (or, if none is left, the default registry lookup by the resource's `format`) decides instead.
+3. Return `NO_PREVIEW` (`from ckanext.unfold.utils import NO_PREVIEW`) to force "never preview this resource". It wins outright like an adapter class does, except the resource gets no adapter at all - not even the default one for its format - so `can_view` reports `False`.
+4. If you return `False`, no later result is consulted either - but unlike `NO_PREVIEW`, the default registry lookup by `format` **still runs afterwards**. This only suppresses a *later custom* adapter, not the built-in one for that format; it does not make the resource unpreviewable.
 
 ## Dependencies
 

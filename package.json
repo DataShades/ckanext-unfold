@@ -1,26 +1,27 @@
 {
   "name": "ckanext-unfold",
-  "version": "0.0.1",
-  "description": "",
+  "version": "3.0.2",
+  "description": "Provides previews for multiple archive formats",
   "main": "gulpfile.js",
+  "private": true,
   "scripts": {
     "dev": "DEBUG=1 gulp watch",
     "build": "gulp build"
   },
   "repository": {
     "type": "git",
-    "url": ""
+    "url": "https://github.com/DataShades/ckanext-unfold"
   },
-  "author": "",
-  "license": "ISC",
+  "author": "DataShades",
+  "license": "AGPL-3.0-or-later",
   "dependencies": {
     "gulp": "^4.0.2",
     "gulp-if": "^3.0.0",
-    "gulp-install": "^1.1.0",
     "gulp-sass": "^5.1.0",
     "gulp-sourcemaps": "^3.0.0",
-    "gulp-touch-fd": "^2.0.0",
-    "pyright": "^1.1.298",
     "sass": "^1.58.3"
+  },
+  "devDependencies": {
+    "pyright": "^1.1.414"
   }
 }

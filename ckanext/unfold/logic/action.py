@@ -125,7 +125,7 @@ def _load_resource_and_view(
         resource_view = _core_resource_view_show(context, {"id": data_dict["view_id"]})
 
         if resource_view.get("resource_id") != resource["id"]:
-            raise unf_exception.UnfoldError("Error. View does not belong to resource")
+            raise unf_exception.UnfoldError(tk._("View does not belong to resource"))
 
     return resource, resource_view
 
@@ -185,7 +185,9 @@ def _serialize_node(
     data = asdict(node)
     data["state"] = {"opened": opened}
 
-    if not flat:
+    if flat:
+        data["children"] = False
+    else:
         # children of one folder are returned nested under it; jstree must
         # not try to resolve `parent` ids that are not part of the payload
         data.pop("parent", None)

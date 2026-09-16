@@ -153,7 +153,7 @@ def test_storage_errors_are_reported(monkeypatch):
         def get_path(self, resource_id):
             return "somewhere"
 
-    with pytest.raises(exception.UnfoldError, match="Error reading uploaded archive"):
+    with pytest.raises(exception.UnfoldError, match="Could not read uploaded archive"):
         _tree_via(monkeypatch, Uploader())
 
 
@@ -206,7 +206,7 @@ def test_uploader_whose_get_path_fails_falls_back_to_download(
 def test_download_fallback_reports_http_failures(monkeypatch, requests_mock):
     requests_mock.get(BASE_URL + "test_archive.zip", status_code=403)
 
-    with pytest.raises(exception.UnfoldError, match="Error fetching archive"):
+    with pytest.raises(exception.UnfoldError, match="Could not fetch archive"):
         _tree_via(monkeypatch, LegacyResourceUpload("resources/abc/def/ghi"))
 
 

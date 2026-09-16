@@ -50,6 +50,27 @@ def test_signal_receiver_returning_false_leaves_the_registry_in_charge(subscribe
     assert utils.get_adapter_for_resource({"format": "csv"}) is None
 
 
+def test_signal_receiver_returning_no_preview_disables_the_format(subscribe):
+    """Unlike ``False``, ``NO_PREVIEW`` also skips the default registry."""
+    subscribe(lambda resource: utils.NO_PREVIEW)
+
+    assert utils.get_adapter_for_resource({"format": "zip"}) is None
+    assert utils.get_adapter_for_resource({"format": "csv"}) is None
+
+
+def test_no_preview_overrides_an_adapter_from_a_later_receiver(subscribe):
+    """A `NO_PREVIEW` result wins even if a later receiver offers an adapter.
+
+    `signal.send()` calls every receiver regardless (blinker has no way to
+    short-circuit it), so this is about which *result* `get_adapter_for_resource`
+    picks, not about skipping the call itself.
+    """
+    subscribe(lambda resource: utils.NO_PREVIEW)
+    subscribe(lambda resource: CustomAdapter)
+
+    assert utils.get_adapter_for_resource({"format": "zip"}) is None
+
+
 def test_get_archive_tree_reports_unknown_format():
     resource = {"format": "CSV", "url": "http://archives.test/x.csv"}
 
