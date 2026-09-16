@@ -8,8 +8,10 @@ from ckan import types
 from ckan.common import CKANConfig
 
 import ckanext.unfold.config as unf_config
+import ckanext.unfold.jobs as unf_jobs
 import ckanext.unfold.utils as unf_utils
 from ckanext.unfold.adapters import adapter_registry
+from ckanext.unfold.logic.action import VIEW_TYPE
 from ckanext.unfold.logic.schema import get_preview_schema
 
 
@@ -40,7 +42,7 @@ class UnfoldPlugin(p.SingletonPlugin):
     # IResourceView
     def info(self) -> dict[str, Any]:
         return {
-            "name": "unfold_view",
+            "name": VIEW_TYPE,
             "title": tk._("Unfold"),
             "icon": "archive",
             "schema": get_preview_schema(),
@@ -66,6 +68,20 @@ class UnfoldPlugin(p.SingletonPlugin):
         }
 
     # IResourceController
+
+    def after_resource_update(
+        self, context: types.Context, resource: dict[str, Any]
+    ) -> None:
+        """Re-warm the cache for every Unfold view of this resource."""
+        views = tk.get_action("resource_view_list")(
+            {"ignore_auth": True}, {"id": resource["id"]}
+        )
+
+        for view in views:
+            if view.get("view_type") != VIEW_TYPE:
+                continue
+
+            unf_jobs.enqueue_cache_warm(resource["id"], view["id"])
 
     def before_resource_delete(
         self,

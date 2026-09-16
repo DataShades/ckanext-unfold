@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-from io import BytesIO
 
 from rpmfile import RPMFile, RPMInfo
 
@@ -23,10 +22,10 @@ class RpmAdapter(BaseAdapter):
         explicit directory entries, so every ancestor folder is synthesized
         by the base class.
         """
-        content = self.get_file_content()
-        members = RPMFile(fileobj=BytesIO(content)).getmembers()
+        with self.get_file_object() as fp:
+            members = RPMFile(fileobj=fp).getmembers()
 
-        return [self._to_entry(m) for m in members]
+            return [self._to_entry(m) for m in members]
 
     @staticmethod
     def _to_entry(entry: RPMInfo) -> unf_types.Entry:

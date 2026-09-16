@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-from io import BytesIO
 
 from ar import Archive, ArchiveError
 from ar.archive import ArPath
@@ -17,10 +16,10 @@ class ArAdapter(BaseAdapter):
 
     def iter_entries(self) -> list[unf_types.Entry]:
         """List an ar archive's entries. ar archives have no directories."""
-        content = self.get_file_content()
-        archive = Archive(BytesIO(content))
+        with self.get_file_object() as fp:
+            archive = Archive(fp)
 
-        return [self._to_entry(e) for e in archive.entries]
+            return [self._to_entry(e) for e in archive.entries]
 
     @staticmethod
     def _to_entry(entry: ArPath) -> unf_types.Entry:

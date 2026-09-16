@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-from io import BytesIO
 
 import py7zr
 from py7zr import FileInfo, exceptions
@@ -38,15 +37,17 @@ class SevenZipAdapter(BaseAdapter):
         7z doesn't allow us to download it partially and fetch only the
         file list.
         """
-        content = self.get_file_content()
         password = self.resource_view.get("archive_pass") or None
-        archive = py7zr.SevenZipFile(BytesIO(content), password=password)
 
+        with self.get_file_object() as fp:
+            archive = py7zr.SevenZipFile(fp, password=password)
 
-        if archive.needs_password() and not password:
-            raise unf_exception.UnfoldError(tk._("Archive is protected with password"))
+            if archive.needs_password() and not password:
+                raise unf_exception.UnfoldError(
+                    tk._("Archive is protected with password")
+                )
 
-        return [self._to_entry(info) for info in archive.list()]
+            return [self._to_entry(info) for info in archive.list()]
 
     @staticmethod
     def _to_entry(entry: FileInfo) -> unf_types.Entry:

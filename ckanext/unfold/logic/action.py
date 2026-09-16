@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from dataclasses import asdict
 from typing import Any
 
 from ckan import types
@@ -11,6 +10,7 @@ from ckan.plugins import toolkit as tk
 import ckanext.unfold.config as unf_config
 import ckanext.unfold.exception as unf_exception
 import ckanext.unfold.index as unf_index
+import ckanext.unfold.jobs as unf_jobs
 import ckanext.unfold.logic.schema as unf_schema
 import ckanext.unfold.types as unf_types
 import ckanext.unfold.utils as unf_utils
@@ -162,6 +162,34 @@ def resource_view_list(
     return views
 
 
+@tk.chained_action
+def resource_view_create(
+    next_action: types.Action, context: types.Context, data_dict: dict[str, Any]
+) -> dict[str, Any]:
+    """Warm the archive index cache as soon as an Unfold view is added."""
+    view = next_action(context, data_dict)
+
+    if view.get("view_type") == VIEW_TYPE:
+        unf_jobs.enqueue_cache_warm(view["resource_id"], view["id"])
+
+    return view
+
+
+@tk.chained_action
+def resource_view_update(
+    next_action: types.Action, context: types.Context, data_dict: dict[str, Any]
+) -> dict[str, Any]:
+    """Same as ``resource_view_create`` above: a changed ``archive_pass``
+    invalidates the cached index (see ``cache_version``), so re-warm it.
+    """
+    view = next_action(context, data_dict)
+
+    if view.get("view_type") == VIEW_TYPE:
+        unf_jobs.enqueue_cache_warm(view["resource_id"], view["id"])
+
+    return view
+
+
 def _strip_password_if_unauthorized(
     context: types.Context, view: dict[str, Any]
 ) -> None:
@@ -182,14 +210,23 @@ def _serialize_node(
     ``text`` is the plain entry name and ``size``/``modified_at`` stay in
     ``data`` as plain strings.
     """
-    data = asdict(node)
-    data["state"] = {"opened": opened}
+    result: dict[str, Any] = {
+        "id": node.id,
+        "text": node.text,
+        "icon": node.icon,
+        "parent": node.parent,
+        "state": {"opened": opened},
+        "data": node.data,
+        "li_attr": node.li_attr,
+        "a_attr": node.a_attr,
+        "children": node.children,
+    }
 
     if flat:
-        data["children"] = False
+        result["children"] = False
     else:
         # children of one folder are returned nested under it; jstree must
         # not try to resolve `parent` ids that are not part of the payload
-        data.pop("parent", None)
+        result.pop("parent", None)
 
-    return data
+    return result

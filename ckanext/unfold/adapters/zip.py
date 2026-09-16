@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-from io import BytesIO
 from zipfile import BadZipFile, LargeZipFile, ZipFile, ZipInfo
 
 import ckanext.unfold.config as unf_config
@@ -22,7 +21,8 @@ class ZipAdapter(BaseAdapter):
 
     def iter_entries(self) -> list[unf_types.Entry]:
         if self.is_upload:
-            infolist = ZipFile(BytesIO(self.get_file_content())).infolist()
+            with self.get_file_object() as fp:
+                infolist = ZipFile(fp).infolist()
         else:
             infolist = self._infolist_from_remote(self.filepath)
 

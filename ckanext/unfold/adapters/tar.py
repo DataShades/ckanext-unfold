@@ -5,7 +5,6 @@ import gzip
 import io
 import logging
 import lzma
-from io import BytesIO
 from tarfile import TarError, TarInfo
 from tarfile import open as tar_open
 from typing import IO
@@ -80,26 +79,27 @@ class TarAdapter(BaseAdapter):
         everything up to the target internally -- bypassing the budget
         below, which only sees bytes that flow through an explicit read.
         """
-        content = self.get_file_content()
-        fileobj = self._decompress(BytesIO(content))
         limit = unf_config.get_max_entries()
         entries: list[unf_types.Entry] = []
 
-        with tar_open(
-            fileobj=_BoundedReader(fileobj, unf_config.get_max_decompressed_size()),
-            mode="r|",
-        ) as tar:
-            for member in tar:
-                if len(entries) >= limit:
-                    log.warning(
-                        "Resource %s: tar archive has more than %s entries; "
-                        "the rest are not shown",
-                        self.resource.get("id"),
-                        limit,
-                    )
-                    break
+        with self.get_file_object() as raw:
+            fileobj = self._decompress(raw)
 
-                entries.append(self._to_entry(member))
+            with tar_open(
+                fileobj=_BoundedReader(fileobj, unf_config.get_max_decompressed_size()),
+                mode="r|",
+            ) as tar:
+                for member in tar:
+                    if len(entries) >= limit:
+                        log.warning(
+                            "Resource %s: tar archive has more than %s entries; "
+                            "the rest are not shown",
+                            self.resource.get("id"),
+                            limit,
+                        )
+                        break
+
+                    entries.append(self._to_entry(member))
 
         return entries
 

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-from io import BytesIO
 
 import rarfile
 from rarfile import Error as RarError
@@ -26,23 +25,25 @@ class RarAdapter(BaseAdapter):
         RAR doesn't allow us to download it partially and fetch only the
         file list.
         """
-        content = self.get_file_content()
-        archive = rarfile.RarFile(BytesIO(content))
+        with self.get_file_object() as fp:
+            archive = rarfile.RarFile(fp)
 
-        needs_password = archive.needs_password()
+            needs_password = archive.needs_password()
 
-        if needs_password and not self.resource_view.get("archive_pass"):
-            raise unf_exception.UnfoldError(tk._("Archive is protected with password"))
+            if needs_password and not self.resource_view.get("archive_pass"):
+                raise unf_exception.UnfoldError(
+                    tk._("Archive is protected with password")
+                )
 
-        if needs_password:
-            archive.setpassword(self.resource_view["archive_pass"])
+            if needs_password:
+                archive.setpassword(self.resource_view["archive_pass"])
 
-        try:
-            file_list = archive.infolist()
-        except rarfile.RarWrongPassword as e:
-            raise unf_exception.UnfoldError(
-                tk._("The archive password is incorrect")
-            ) from e
+            try:
+                file_list = archive.infolist()
+            except rarfile.RarWrongPassword as e:
+                raise unf_exception.UnfoldError(
+                    tk._("The archive password is incorrect")
+                ) from e
 
         if not file_list:
             # RAR3-style archives can fail a wrong password silently (no

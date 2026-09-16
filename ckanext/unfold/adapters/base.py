@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import io
 import logging
 import os
-from typing import Any
+from typing import IO, Any
 
 import ckan.plugins.toolkit as tk
 from ckan.lib import uploader
@@ -114,8 +115,8 @@ class BaseAdapter:
         """
         remote.check_limit(size, unf_config.get_max_file_size())
 
-    def get_file_content(self, url: str | None = None) -> bytes:
-        """Return the resource's content as bytes.
+    def get_file_object(self, url: str | None = None) -> IO[bytes]:
+        """Return the resource's content as a seekable binary file object.
 
         Locally uploaded resources are read straight from CKAN storage,
         avoiding an authenticated HTTP request to CKAN's own download endpoint
@@ -126,7 +127,7 @@ class BaseAdapter:
         maximum: the advertised Content-Length is rejected up front, and the
         download is aborted once the bytes read exceed the limit (in case
         Content-Length is missing or wrong), so an over-limit archive is never
-        fully loaded into memory.
+        fully transferred.
         """
         if self.is_upload:
             return self._read_upload()
@@ -137,8 +138,8 @@ class BaseAdapter:
             unf_config.get_request_timeout(),
         )
 
-    def _read_upload(self) -> bytes:
-        """Read an uploaded resource's bytes through whatever uploader serves it.
+    def _read_upload(self) -> IO[bytes]:
+        """Open an uploaded resource through whatever uploader serves it.
 
         CKAN 2.12's file-keeper uploader exposes a ``storage``; the legacy
         ``ResourceUpload`` and extensions such as ckanext-cloudstorage or
@@ -156,8 +157,19 @@ class BaseAdapter:
         storage = getattr(upload, "storage", None) if files is not None else None
 
         if storage is not None:
+            stream = getattr(storage, "stream", None)
+
             try:
-                return storage.content(files.FileData(upload.get_path(resource_id)))
+                if stream is None:
+                    data = storage.content(files.FileData(upload.get_path(resource_id)))
+                    return io.BytesIO(data)
+
+                source = stream(files.FileData(upload.get_path(resource_id)))
+
+                if isinstance(source, io.IOBase) and source.seekable():
+                    return source  # type: ignore[return-value]
+
+                return remote.spool(source)
             except files.exc.FilesError as e:
                 raise unf_exception.UnfoldError(
                     tk._("Could not read uploaded archive: %(error)s") % {"error": e}
@@ -167,8 +179,7 @@ class BaseAdapter:
 
         if path is not None:
             try:
-                with open(path, "rb") as fp:
-                    return fp.read()
+                return open(path, "rb")
             except OSError as e:
                 raise unf_exception.UnfoldError(
                     tk._("Could not read uploaded archive: %(error)s") % {"error": e}

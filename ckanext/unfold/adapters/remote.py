@@ -21,7 +21,9 @@ import io
 import ipaddress
 import logging
 import socket
+import tempfile
 import time
+from collections.abc import Iterable
 from typing import IO
 from urllib.parse import urljoin, urlparse
 
@@ -42,6 +44,10 @@ CHUNK_SIZE = 64 * 1024
 # the central directory. Fetching in fixed blocks keeps the number of Range
 # requests small while transferring little more than what the parser reads.
 BLOCK_SIZE = 256 * 1024
+# Below this, a downloaded (or spooled) body stays an in-memory BytesIO;
+# above it, it spills to a temp file on disk. Keeps a worker's peak memory
+# bounded well under `max_file_size` instead of scaling with archive size.
+SPOOL_MAX_SIZE = 1024 * 1024
 
 ALLOWED_SCHEMES = frozenset({"http", "https"})
 MAX_REDIRECTS = 5
@@ -170,7 +176,10 @@ def read_limited(resp: requests.Response, max_bytes: int) -> bytes:
     """Read a streamed response body, aborting once it exceeds ``max_bytes``.
 
     Protects against missing or wrong Content-Length headers: an over-limit
-    body is never fully loaded into memory.
+    body is never fully loaded into memory. For a bounded read (a single
+    Range block) this is the right tool; a whole-file download should use
+    :func:`download_limited` instead, which does not hold the result in
+    memory twice.
     """
     chunks: list[bytes] = []
     downloaded = 0
@@ -183,8 +192,59 @@ def read_limited(resp: requests.Response, max_bytes: int) -> bytes:
     return b"".join(chunks)
 
 
-def fetch_full(url: str, max_bytes: int, timeout: float = DEFAULT_TIMEOUT) -> bytes:
-    """Download a whole remote file within ``max_bytes``."""
+def spool(chunks: Iterable[bytes]) -> IO[bytes]:
+    """Collect ``chunks`` into a seekable file object.
+
+    Spills to disk above :data:`SPOOL_MAX_SIZE` instead of growing one
+    ever-larger in-memory buffer, so a large archive does not need two full
+    copies (a chunk list plus the joined result) resident in memory at once.
+    """
+    sink = tempfile.SpooledTemporaryFile(max_size=SPOOL_MAX_SIZE, mode="w+b")  # noqa: SIM115
+
+    try:
+        for chunk in chunks:
+            sink.write(chunk)
+    except BaseException:
+        sink.close()
+        raise
+
+    sink.seek(0)
+    return sink
+
+
+def download_limited(resp: requests.Response, max_bytes: int) -> IO[bytes]:
+    """Stream a response body into a spooled file, aborting past ``max_bytes``.
+
+    Same abort guarantee as :func:`read_limited` (an over-limit body is
+    never fully read), but the bytes land straight in a file object instead
+    of a list of chunks that then gets joined into a second, duplicate
+    in-memory copy. The returned object is left positioned at the end (its
+    size is ``tell()``); the caller is responsible for seeking back to 0.
+    """
+    sink = tempfile.SpooledTemporaryFile(max_size=SPOOL_MAX_SIZE, mode="w+b")  # noqa: SIM115
+    downloaded = 0
+
+    try:
+        for chunk in resp.iter_content(chunk_size=CHUNK_SIZE):
+            downloaded += len(chunk)
+            check_limit(downloaded, max_bytes)
+            sink.write(chunk)
+    except BaseException:
+        sink.close()
+        raise
+
+    return sink
+
+
+def fetch_full(url: str, max_bytes: int, timeout: float = DEFAULT_TIMEOUT) -> IO[bytes]:
+    """Download a whole remote file within ``max_bytes``.
+
+    Returns a seekable file object, not ``bytes``: archive libraries
+    (zipfile, tarfile, rarfile, py7zr) all accept one directly, so the
+    caller never needs to wrap the result back into a ``BytesIO`` -- and the
+    body is streamed straight to the file rather than buffered as a list of
+    chunks and then joined into a second, duplicate copy.
+    """
     started = time.monotonic()
     log.info("Downloading %s (limit %s bytes)", url, max_bytes)
 
@@ -193,19 +253,21 @@ def fetch_full(url: str, max_bytes: int, timeout: float = DEFAULT_TIMEOUT) -> by
             resp.raise_for_status()
             check_limit(content_length(resp.headers.get("content-length")), max_bytes)
 
-            data = read_limited(resp, max_bytes)
+            sink = download_limited(resp, max_bytes)
     except requests.RequestException as e:
         raise UnfoldError(
             tk._("Could not fetch archive: %(error)s") % {"error": e}
         ) from e
 
+    size = sink.tell()
+    sink.seek(0)
     log.info(
         "Downloaded %s bytes from %s in %.1fs",
-        len(data),
+        size,
         url,
         time.monotonic() - started,
     )
-    return data
+    return sink
 
 
 class RemoteRangeFile(io.RawIOBase):
@@ -420,7 +482,7 @@ def open_remote(
             )
 
             if resp.status_code == requests.codes.requested_range_not_satisfiable:
-                return io.BytesIO(fetch_full(url, max_bytes, timeout))
+                return fetch_full(url, max_bytes, timeout)
 
             resp.raise_for_status()
 
@@ -431,7 +493,9 @@ def open_remote(
                 check_limit(
                     content_length(resp.headers.get("content-length")), max_bytes
                 )
-                return io.BytesIO(read_limited(resp, max_bytes))
+                sink = download_limited(resp, max_bytes)
+                sink.seek(0)
+                return sink
 
             total = total_from_content_range(resp.headers.get("content-range"))
 

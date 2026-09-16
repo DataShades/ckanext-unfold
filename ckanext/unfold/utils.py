@@ -100,16 +100,13 @@ class UnfoldCacheManager:
     naturally treated as stale rather than misread.
     """
 
-    _conn: redis.Redis | None = None
     _PREFIX = "ckanext:unfold:index:"
     _BATCH = 1000
 
     @classmethod
     def _ensure_conn(cls) -> redis.Redis:
-        if cls._conn is None:
-            cls._conn = connect_to_redis()
 
-        return cls._conn
+        return connect_to_redis()
 
     @classmethod
     def _key(cls, resource_id: str) -> str:
@@ -202,14 +199,6 @@ class UnfoldCacheManager:
     def delete(cls, resource_id: str) -> int:
         """Delete the resource's cache entry. Returns 1 if one existed, else 0."""
         return cls._ensure_conn().delete(cls._key(resource_id))
-
-    @classmethod
-    def close(cls) -> None:
-        if not cls._conn:
-            return
-
-        cls._conn.close()
-        cls._conn = None
 
 
 class CachedIndex:

@@ -386,14 +386,10 @@ ckan.module("unfold-init-jstree", function ($, _) {
                     search: {
                         show_only_matches: this.options.searchShowOnlyMatches,
                         close_opened_onclear: this.options.searchCloseOpenedOnClear,
-                        search_callback: (str, node) => {
-                            const query = str.toLowerCase();
-                            return (
-                                node.id.toLowerCase().includes(query) ||
-                                node.data?.size?.toLowerCase().includes(query) ||
-                                node.data?.modified_at?.toLowerCase().includes(query)
-                            );
-                        },
+                        // Path only: matching size/date rarely helps and
+                        // tripled the work per node for no real benefit.
+                        search_callback: (str, node) =>
+                            node.id.toLowerCase().includes(str.toLowerCase()),
                     },
                     contextmenu: {
                         items: this._getContextMenuItems,
