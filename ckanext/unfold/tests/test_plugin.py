@@ -40,33 +40,6 @@ def test_view_info(plugin):
     assert set(info["schema"]) == {"archive_pass", "show_context_menu"}
 
 
-def test_new_upload_invalidates_the_cache(plugin, invalidated):
-    current = {"id": "res", "url": "old.zip", "url_type": "upload"}
-    plugin.before_resource_update(
-        {}, current, {"id": "res", "url_type": "upload", "upload": object()}
-    )
-
-    assert invalidated == ["res"]
-
-
-def test_editing_an_upload_without_a_new_file_keeps_the_cache(plugin, invalidated):
-    current = {"id": "res", "url": "old.zip", "url_type": "upload"}
-    plugin.before_resource_update(
-        {}, current, {"id": "res", "url_type": "upload", "name": "renamed"}
-    )
-
-    assert invalidated == []
-
-
-def test_changed_link_invalidates_the_cache(plugin, invalidated):
-    current = {"id": "res", "url": "http://archives.test/a.zip", "url_type": ""}
-    plugin.before_resource_update(
-        {}, current, {"id": "res", "url_type": "", "url": "http://archives.test/b.zip"}
-    )
-
-    assert invalidated == ["res"]
-
-
 def test_deleting_a_resource_invalidates_the_cache(plugin, invalidated):
     plugin.before_resource_delete({}, {"id": "res"}, [])
 

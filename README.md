@@ -43,8 +43,11 @@ See the [config declaration](./ckanext/unfold/config_declaration.yaml) file.
 ## Large archives
 
 The listing is built once per resource and cached in Redis as a folder index
-(one hash per resource, one field per folder). How it reaches the browser
-depends on `ckanext.unfold.expand_nodes_threshold`:
+(one hash per resource, one field per folder), for `ckanext.unfold.cache_ttl`
+seconds. Staleness is checked on every read against a fingerprint of the
+resource's `url`, `format`, `metadata_modified` and the view's `archive_pass`.
+
+How the listing reaches the browser depends on `ckanext.unfold.expand_nodes_threshold`:
 
 - **At most the threshold** (2000 entries by default): the whole tree is sent
   in one request and shown expanded.

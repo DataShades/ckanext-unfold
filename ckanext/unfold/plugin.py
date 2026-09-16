@@ -16,6 +16,7 @@ from ckanext.unfold.logic.schema import get_preview_schema
 @tk.blanket.actions
 @tk.blanket.validators
 @tk.blanket.config_declarations
+@tk.blanket.cli
 class UnfoldPlugin(p.SingletonPlugin):
     p.implements(p.IConfigurable)
     p.implements(p.IConfigurer)
@@ -65,17 +66,6 @@ class UnfoldPlugin(p.SingletonPlugin):
         }
 
     # IResourceController
-
-    def before_resource_update(
-        self, context: types.Context, current: dict[str, Any], resource: dict[str, Any]
-    ) -> None:
-        if resource.get("url_type") == "upload" and not resource.get("upload"):
-            return
-
-        if resource.get("url_type") == "url" and current["url"] == resource["url"]:
-            return
-
-        unf_utils.UnfoldCacheManager.delete(resource["id"])
 
     def before_resource_delete(
         self,

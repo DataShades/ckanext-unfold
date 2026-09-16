@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import time
@@ -56,16 +57,47 @@ class NoPreview:
 NO_PREVIEW = NoPreview()
 
 
+def cache_version(resource: dict[str, Any], resource_view: dict[str, Any]) -> str:
+    """Fingerprint of all values that affect the tree built for this resource.
+
+    Compared against the current resource state when reading the cached index to
+    ensure the cache is invalidated whenever any relevant value changes.
+
+    ``metadata_modified`` is used instead of ``last_modified`` because it changes
+    for any resource update, including changes to ``url`` and ``format``, while
+    ``last_modified`` only changes when a new file is uploaded.
+
+    ``archive_pass`` is included because the password affects the archive contents
+    available to the server. Different passwords must therefore produce separate
+    cached indexes.
+    """
+    raw = "\0".join(
+        [
+            resource.get("url") or "",
+            resource.get("format") or "",
+            str(resource.get("metadata_modified") or ""),
+            resource_view.get("archive_pass") or "",
+        ]
+    )
+    return hashlib.sha256(raw.encode()).hexdigest()[:16]
+
+
 class UnfoldCacheManager:
     """Archive indexes in Redis, one hash per resource.
 
     Hash layout (key ``ckanext:unfold:index:<resource_id>``):
 
-    * ``meta``  - JSON ``{"total": n}``
+    * ``meta``  - JSON ``{"total": n, "version": "..."}``
     * ``paths`` - all node ids joined with NUL, for search
     * ``c:<parent id>`` - JSON list of that folder's children
 
     Serving one folder is a single ``HGET``, whatever the archive size.
+    ``version`` is :func:`cache_version`'s fingerprint at save time; a
+    mismatch at read time means the resource or view changed since, and is
+    treated as a cache miss by :func:`get_archive_index`. An entry saved
+    before this field existed reads back as ``version=None``, which never
+    matches a freshly computed fingerprint either, so old entries are
+    naturally treated as stale rather than misread.
     """
 
     _conn: redis.Redis | None = None
@@ -84,12 +116,12 @@ class UnfoldCacheManager:
         return f"{cls._PREFIX}{resource_id}"
 
     @classmethod
-    def save(cls, index: ArchiveIndex, resource_id: str) -> None:
+    def save(cls, index: ArchiveIndex, resource_id: str, version: str) -> None:
         conn = cls._ensure_conn()
         key = cls._key(resource_id)
 
         mapping: dict[str, str] = {
-            "meta": json.dumps({"total": index.total}),
+            "meta": json.dumps({"total": index.total, "version": version}),
             "paths": "\0".join(index.paths),
         }
 
@@ -109,6 +141,33 @@ class UnfoldCacheManager:
     @classmethod
     def exists(cls, resource_id: str) -> bool:
         return bool(cls._ensure_conn().hexists(cls._key(resource_id), "meta"))
+
+    @classmethod
+    def version(cls, resource_id: str) -> str | None:
+        """The fingerprint the cached index was saved with, or ``None``.
+
+        ``None`` covers both "nothing cached" and "cached before this field
+        existed" - either way the caller should treat it as a miss.
+        """
+        raw = cls._ensure_conn().hget(cls._key(resource_id), "meta")
+
+        return json.loads(raw).get("version") if raw else None  # type: ignore
+
+    @classmethod
+    def clear_all(cls) -> int:
+        """Delete every resource's cached index. Returns how many were removed.
+
+        Uses ``SCAN`` rather than ``KEYS``: safe to run against a Redis
+        instance shared with the rest of CKAN without blocking it, however
+        many keys exist.
+        """
+        conn = cls._ensure_conn()
+        keys = list(conn.scan_iter(match=f"{cls._PREFIX}*"))
+
+        if not keys:
+            return 0
+
+        return conn.delete(*keys)
 
     @classmethod
     def total(cls, resource_id: str) -> int:
@@ -140,8 +199,9 @@ class UnfoldCacheManager:
         return raw.decode().split("\0") if raw else []
 
     @classmethod
-    def delete(cls, resource_id: str) -> None:
-        cls._ensure_conn().delete(cls._key(resource_id))
+    def delete(cls, resource_id: str) -> int:
+        """Delete the resource's cache entry. Returns 1 if one existed, else 0."""
+        return cls._ensure_conn().delete(cls._key(resource_id))
 
     @classmethod
     def close(cls) -> None:
@@ -193,15 +253,26 @@ def get_archive_index(
 ) -> ArchiveIndex | CachedIndex:
     """Return the archive's folder index, building and caching it if needed."""
     cache_enabled = unf_config.is_cache_enabled()
+    version = cache_version(resource, resource_view)
 
-    if cache_enabled and UnfoldCacheManager.exists(resource["id"]):
-        cached = CachedIndex(resource["id"])
-        log.info(
-            "Resource %s: serving %s entries from the Redis index",
-            resource["id"],
-            cached.total,
-        )
-        return cached
+    if cache_enabled:
+        cached_version = UnfoldCacheManager.version(resource["id"])
+
+        if cached_version == version:
+            cached = CachedIndex(resource["id"])
+            log.info(
+                "Resource %s: serving %s entries from the Redis index",
+                resource["id"],
+                cached.total,
+            )
+            return cached
+
+        if cached_version is not None:
+            log.info(
+                "Resource %s: cached index is stale (url, format, "
+                "metadata_modified or the view's password changed); rebuilding",
+                resource["id"],
+            )
 
     started = time.monotonic()
     log.info(
@@ -222,7 +293,7 @@ def get_archive_index(
     index = ArchiveIndex.from_nodes(nodes)
 
     if cache_enabled:
-        UnfoldCacheManager.save(index, resource["id"])
+        UnfoldCacheManager.save(index, resource["id"], version)
 
     log.info(
         "Resource %s: indexed %s entries in %.1fs total",
