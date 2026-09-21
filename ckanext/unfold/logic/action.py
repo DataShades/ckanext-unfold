@@ -61,17 +61,15 @@ def get_archive_structure(
 
     parent = data_dict.get("parent") or unf_index.ROOT
     limit = int(data_dict.get("limit") or unf_config.get_page_size())
-    children = index.children_of(parent)
+    children, children_total = index.children_page(parent, limit)
 
     return {
         "mode": "lazy",
         "total": index.total,
         "parent": parent,
-        "children_total": len(children),
-        "has_more": len(children) > limit,
-        "nodes": [
-            _serialize_node(n, opened=False, flat=False) for n in children[:limit]
-        ],
+        "children_total": children_total,
+        "has_more": children_total > limit,
+        "nodes": [_serialize_node(n, opened=False, flat=False) for n in children],
     }
 
 

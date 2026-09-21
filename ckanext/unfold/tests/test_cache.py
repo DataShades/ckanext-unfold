@@ -90,6 +90,37 @@ def test_saving_again_replaces_the_old_index(small_index):
 
 
 @pytest.mark.usefixtures("clean_redis")
+def test_children_page_reads_a_page_and_counts_the_folder(small_index):
+    utils.UnfoldCacheManager.save(small_index, "res-1", "v1")
+
+    page, total = utils.UnfoldCacheManager.children_page("res-1", "#", 1)
+
+    assert _ids(page) == ["a"]
+    assert total == 2
+    assert page[0].parent == "#"
+    assert page[0].children is True
+    assert utils.UnfoldCacheManager.children_page("res-1", "a", 10) == (
+        utils.UnfoldCacheManager.children("res-1", "a"),
+        2,
+    )
+    assert utils.UnfoldCacheManager.children_page("res-1", "missing", 10) == ([], 0)
+    assert utils.UnfoldCacheManager.children_page("nope", "#", 10) == ([], 0)
+
+
+@pytest.mark.usefixtures("clean_redis")
+def test_cached_pages_match_the_in_memory_pages(small_index):
+    utils.UnfoldCacheManager.save(small_index, "res-1", "v1")
+    cached = utils.CachedIndex("res-1")
+
+    for parent in ("#", "a", "missing"):
+        for limit in (1, 2, 500):
+            page, total = cached.children_page(parent, limit)
+            expected, expected_total = small_index.children_page(parent, limit)
+
+            assert (_ids(page), total) == (_ids(expected), expected_total)
+
+
+@pytest.mark.usefixtures("clean_redis")
 def test_cached_index_answers_like_the_in_memory_index(small_index):
     utils.UnfoldCacheManager.save(small_index, "res-1", "v1")
     cached = utils.CachedIndex("res-1")
@@ -153,8 +184,7 @@ def test_cache_version_changes_with_anything_that_affects_the_tree():
     assert utils.cache_version({**base, "url": "b.zip"}, {}) != baseline
     assert utils.cache_version({**base, "format": "tar"}, {}) != baseline
     assert (
-        utils.cache_version({**base, "metadata_modified": "2024-06-01"}, {})
-        != baseline
+        utils.cache_version({**base, "metadata_modified": "2024-06-01"}, {}) != baseline
     )
     assert utils.cache_version(base, {"archive_pass": "secret"}) != baseline
 

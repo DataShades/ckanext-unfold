@@ -1,6 +1,6 @@
 """Tests for the folder index. No CKAN runtime needed."""
 
-from dataclasses import asdict
+from dataclasses import asdict, replace
 
 from ckanext.unfold import index
 from ckanext.unfold.types import Node
@@ -102,3 +102,72 @@ def test_search_paths_returns_first_matches_and_total():
 
     assert matched == ["a/x.txt"]
     assert matches == 2
+
+
+def _same(node: Node) -> tuple:
+    return (
+        node.id,
+        node.text,
+        node.icon,
+        node.parent,
+        node.data,
+        node.li_attr,
+        node.a_attr,
+        node.children,
+    )
+
+
+def test_folder_round_trips_through_its_cached_form():
+    nodes = [
+        _node("d", True),
+        _node("d/new\nline.txt"),
+        _node('d/quo"te,\\back.txt'),
+        _node("d/uni\u2028\u00e9\u4e2d.txt"),
+    ]
+    nodes[0].children = True
+    nodes[1].a_attr = {"href": "http://x.test/f", "target": "_self"}
+    nodes[2].li_attr = {"class": "c"}
+    nodes[3].text = "A name that is not the file name"
+
+    raw = index.encode_folder(nodes)
+    restored = index.decode_folder(raw, index.ROOT)
+
+    # the parent is not stored: it is whatever folder the caller read it from
+    assert [_same(n) for n in restored] == [
+        _same(replace(n, parent=index.ROOT)) for n in nodes
+    ]
+    assert index.folder_size(raw) == len(nodes)
+    assert index.folder_size(raw.encode()) == len(nodes)
+
+
+def test_cached_form_is_one_line_per_node_and_leaves_out_what_is_derivable():
+    raw = index.encode_folder([_node("a/b.txt"), _node("a/c\nd.txt")])
+    lines = raw.split("\n")
+
+    assert len(lines) == 2  # the newline in a name is escaped, not raw
+    assert lines[0] == (
+        '{"id":"a/b.txt","icon":"fa fa-file","data":{"size":"1.0 KB","modified_at":""}}'
+    )
+
+
+def test_decode_folder_stops_after_the_limit():
+    nodes = [_node(f"f{i:03d}.txt") for i in range(50)]
+    raw = index.encode_folder(nodes).encode()
+
+    first = index.decode_folder(raw, index.ROOT, 5)
+
+    assert [n.id for n in first] == [f"f{i:03d}.txt" for i in range(5)]
+    assert index.folder_size(raw) == 50
+    assert len(index.decode_folder(raw, index.ROOT)) == 50
+    assert index.decode_folder(b"", index.ROOT) == []
+    assert index.folder_size(b"") == 0
+
+
+def test_children_page_returns_a_page_and_the_folder_size():
+    idx = index.ArchiveIndex.from_nodes([_node(f"f{i}.txt") for i in range(5)])
+
+    page, total = idx.children_page(index.ROOT, 2)
+
+    assert [n.id for n in page] == ["f0.txt", "f1.txt"]
+    assert total == 5
+    assert idx.children_page("missing", 2) == ([], 0)

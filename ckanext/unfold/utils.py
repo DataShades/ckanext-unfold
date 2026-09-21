@@ -4,7 +4,6 @@ import hashlib
 import json
 import logging
 import time
-from dataclasses import asdict
 from typing import Any
 
 import redis
@@ -23,6 +22,9 @@ from ckanext.unfold.index import (
     ArchiveIndex,
     SearchResult,
     build_search_result,
+    decode_folder,
+    encode_folder,
+    folder_size,
     search_paths,
 )
 
@@ -52,7 +54,6 @@ class NoPreview:
 
     def __repr__(self) -> str:
         return "NO_PREVIEW"
-
 
 
 NO_PREVIEW = NoPreview()
@@ -90,9 +91,11 @@ class UnfoldCacheManager:
 
     * ``meta``  - JSON ``{"total": n, "version": "..."}``
     * ``paths`` - all node ids joined with NUL, for search
-    * ``c:<parent id>`` - JSON list of that folder's children
+    * ``c:<parent id>`` - that folder's children, one JSON object per line
+      (see :func:`ckanext.unfold.index.encode_folder`)
 
-    Serving one folder is a single ``HGET``, whatever the archive size.
+    Serving one folder is a single ``HGET``, whatever the archive size, and
+    only the requested page of it is parsed.
     ``version`` is :func:`cache_version`'s fingerprint at save time; a
     mismatch at read time means the resource or view changed since, and is
     treated as a cache miss by :func:`get_archive_index`. An entry saved
@@ -124,7 +127,7 @@ class UnfoldCacheManager:
         }
 
         for parent, nodes in index.children.items():
-            mapping[f"c:{parent}"] = json.dumps([asdict(n) for n in nodes])
+            mapping[f"c:{parent}"] = encode_folder(nodes)
 
         pipe = conn.pipeline()
         pipe.delete(key)
@@ -177,7 +180,24 @@ class UnfoldCacheManager:
     def children(cls, resource_id: str, parent: str) -> list[unf_types.Node]:
         raw = cls._ensure_conn().hget(cls._key(resource_id), f"c:{parent}")
 
-        return [unf_types.Node(**n) for n in json.loads(raw)] if raw else []  # type: ignore
+        return decode_folder(raw, parent) if raw else []  # type: ignore
+
+    @classmethod
+    def children_page(
+        cls, resource_id: str, parent: str, limit: int
+    ) -> tuple[list[unf_types.Node], int]:
+        """The first ``limit`` children of ``parent`` and how many it has.
+
+        Unlike :meth:`children` this only builds ``limit`` nodes, so a page of
+        a folder with tens of thousands of entries costs the page, not the
+        folder.
+        """
+        raw = cls._ensure_conn().hget(cls._key(resource_id), f"c:{parent}")
+
+        if not raw:
+            return [], 0
+
+        return decode_folder(raw, parent, limit), folder_size(raw)  # type: ignore
 
     @classmethod
     def all_nodes(cls, resource_id: str) -> list[unf_types.Node]:
@@ -185,8 +205,10 @@ class UnfoldCacheManager:
         nodes: list[unf_types.Node] = []
 
         for field, raw in data.items():
-            if field.startswith(b"c:"):
-                nodes.extend(unf_types.Node(**n) for n in json.loads(raw))
+            if not field.startswith(b"c:"):
+                continue
+
+            nodes.extend(decode_folder(raw, field[2:].decode()))
 
         return nodes
 
@@ -211,6 +233,11 @@ class CachedIndex:
 
     def children_of(self, parent: str) -> list[unf_types.Node]:
         return UnfoldCacheManager.children(self.resource_id, parent)
+
+    def children_page(
+        self, parent: str, limit: int
+    ) -> tuple[list[unf_types.Node], int]:
+        return UnfoldCacheManager.children_page(self.resource_id, parent, limit)
 
     def all_nodes(self) -> list[unf_types.Node]:
         return UnfoldCacheManager.all_nodes(self.resource_id)

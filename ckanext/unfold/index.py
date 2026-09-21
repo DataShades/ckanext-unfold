@@ -12,8 +12,11 @@ No CKAN dependency, so it is unit-testable on its own.
 
 from __future__ import annotations
 
+import io
+import json
 from collections import defaultdict
 from dataclasses import dataclass, field
+from itertools import islice
 
 from ckanext.unfold.types import Node
 
@@ -80,6 +83,86 @@ def build_search_result(
     )
 
 
+def encode_folder(nodes: list[Node]) -> str:
+    """Serialize one folder's children for the cache: one JSON object per line.
+
+    Only what cannot be derived is stored: the parent is the key the folder
+    is stored under, ``text`` is the last part of the id for every built-in
+    adapter, and ``state`` is never sent to the browser as it is (see
+    ``_serialize_node``). ``None`` attributes and a false ``children`` are left
+    out too, so a plain file costs about half of what ``dataclasses.asdict`` did.
+
+    One node per line lets :func:`decode_folder` read the first page of a
+    folder with tens of thousands of entries without parsing the rest. JSON
+    never contains a raw newline (it is escaped), so the split is safe.
+    """
+    lines: list[str] = []
+
+    for node in nodes:
+        item: dict[str, object] = {"id": node.id}
+
+        if node.text != _basename(node.id):
+            item["text"] = node.text
+
+        item["icon"] = node.icon
+        item["data"] = node.data
+
+        if node.li_attr is not None:
+            item["li_attr"] = node.li_attr
+
+        if node.a_attr is not None:
+            item["a_attr"] = node.a_attr
+
+        if node.children:
+            item["children"] = True
+
+        lines.append(json.dumps(item, separators=(",", ":")))
+
+    return "\n".join(lines)
+
+
+def decode_folder(
+    raw: bytes | str, parent: str, limit: int | None = None
+) -> list[Node]:
+    """Inverse of :func:`encode_folder`: the first ``limit`` nodes (all if
+    ``None``) of the folder stored as ``raw``, whose parent id is ``parent``.
+    """
+    stream = io.BytesIO(raw.encode() if isinstance(raw, str) else raw)
+    nodes: list[Node] = []
+
+    for line in islice(stream, limit):
+        item = json.loads(line)
+        nodes.append(
+            Node(
+                id=item["id"],
+                text=item.get("text", _basename(item["id"])),
+                icon=item["icon"],
+                parent=parent,
+                data=item["data"],
+                li_attr=item.get("li_attr"),
+                a_attr=item.get("a_attr"),
+                children=item.get("children", False),
+            )
+        )
+
+    return nodes
+
+
+def _basename(node_id: str) -> str:
+    return node_id.rsplit("/", 1)[-1]
+
+
+def folder_size(raw: bytes | str) -> int:
+    """Number of nodes in a folder stored by :func:`encode_folder`."""
+    if not raw:
+        return 0
+
+    if isinstance(raw, str):
+        return raw.count("\n") + 1
+
+    return raw.count(b"\n") + 1
+
+
 @dataclass
 class ArchiveIndex:
     """In-memory index: every node grouped under its parent id."""
@@ -125,6 +208,12 @@ class ArchiveIndex:
 
     def children_of(self, parent: str) -> list[Node]:
         return self.children.get(parent, [])
+
+    def children_page(self, parent: str, limit: int) -> tuple[list[Node], int]:
+        """The first ``limit`` children of ``parent``, and how many it has."""
+        siblings = self.children_of(parent)
+
+        return siblings[:limit], len(siblings)
 
     def all_nodes(self) -> list[Node]:
         return [node for siblings in self.children.values() for node in siblings]
