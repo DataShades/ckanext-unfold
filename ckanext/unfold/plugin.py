@@ -81,7 +81,7 @@ class UnfoldPlugin(p.SingletonPlugin):
             if view.get("view_type") != VIEW_TYPE:
                 continue
 
-            unf_jobs.enqueue_cache_warm(resource["id"], view["id"])
+            unf_jobs.enqueue_cache_warm(resource, view)
 
     def before_resource_delete(
         self,

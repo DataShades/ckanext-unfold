@@ -58,6 +58,25 @@ How the listing reaches the browser depends on `ckanext.unfold.expand_nodes_thre
   are not loaded. The widget shows the total entry count and, for a search,
   how many entries matched. "Expand all" is disabled for these archives.
 
+### Background jobs
+
+Fetching and parsing an archive can take a minute, so an archive that is not
+cached yet is read by a [CKAN background job](https://docs.ckan.org/en/latest/maintaining/background-tasks.html)
+and not by the web request that asked for it. The widget shows a "processing"
+notice and polls `get_archive_status` (a Redis lookup, so a web worker is never
+held up) until the listing is ready. The job is also queued as soon as
+something invalidates the cache: an Unfold view is added, its `archive_pass`
+changes, or the resource is updated. Usually nobody has to wait.
+
+This needs a worker: `ckan jobs worker`. Without one, Unfold notices that
+nothing is listening on the queue and reads the archive inside the request.
+The same happens with `ckanext.unfold.enable_cache = false`
+(the job hands its result over through the cache) or
+`ckanext.unfold.build_in_background = false`. In that mode, keep
+`ckanext.unfold.request_timeout` below your web server's request limit (uWSGI
+`harakiri`, gunicorn `--timeout`), or a slow origin gets the worker killed
+instead of a readable error. A job has `ckanext.unfold.job_timeout` seconds.
+
 Remote ZIP archives are read through HTTP Range requests, so only the central
 directory is transferred. A multi-gigabyte ZIP referenced by URL previews in a
 few requests as long as the hosting server honours `Range`. Other formats are
@@ -72,8 +91,14 @@ downloaded in full and are subject to `ckanext.unfold.max_file_size`.
 - `search_archive_structure` (`id`, optional `view_id`, `q`, optional `limit`):
   returns `{"results": [{id, text, icon, is_dir, size, modified_at}, ...],
   "ids": [...folders to open...], "matches": n, "truncated": bool}`.
+- `get_archive_status` (`id`, optional `view_id`): where the listing stands,
+  as `{"status": "ready" | "processing" | "failed" | "missing"}`. `failed` comes
+  with the `error` described below; `missing` means nothing is cached and
+  nothing is running, and asking `get_archive_structure` starts a job.
 
-Both actions return `{"error": {"code": "...", "message": "..."}}` with HTTP
+`get_archive_structure` and `search_archive_structure` answer
+`{"status": "processing"}` instead of a listing while a job is reading the
+archive. Both actions return `{"error": {"code": "...", "message": "..."}}` with HTTP
 200 when the archive itself cannot be listed. `message` is translated and meant
 for people; `code` is stable and is one of `password_required`,
 `password_incorrect`, `too_large`, `fetch_failed`, `unsupported_format`,

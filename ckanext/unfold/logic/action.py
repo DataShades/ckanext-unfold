@@ -14,7 +14,6 @@ import ckanext.unfold.index as unf_index
 import ckanext.unfold.jobs as unf_jobs
 import ckanext.unfold.logic.schema as unf_schema
 import ckanext.unfold.types as unf_types
-import ckanext.unfold.utils as unf_utils
 
 
 log = logging.getLogger(__name__)
@@ -45,10 +44,16 @@ def get_archive_structure(
 
     Returns ``{"error": {"code": code, "message": message}}`` when the archive
     cannot be read; see :func:`_error_payload`.
+
+    An archive that is not cached yet is not read here: a background job does
+    it and ``{"status": "processing"}`` comes back instead, see
+    :func:`get_archive_status`.
     """
     try:
         resource, resource_view = _load_resource_and_view(context, data_dict)
-        index = unf_utils.get_archive_index(resource, resource_view)
+        index = unf_jobs.get_index(resource, resource_view)
+    except unf_exception.ArchiveProcessing:
+        return {"status": unf_jobs.PROCESSING}
     except unf_exception.UnfoldError as e:
         return _error_payload(data_dict["id"], e)
 
@@ -83,11 +88,14 @@ def search_archive_structure(
     Returns the first ``limit`` matching entries (``results``, each with
     its full path), the folder ids that must be opened to reveal them
     (``ids``, parents before children), the total number of matches, and
-    whether the result was truncated.
+    whether the result was truncated. Answers ``{"status": "processing"}``
+    like ``get_archive_structure`` if the index has expired since.
     """
     try:
         resource, resource_view = _load_resource_and_view(context, data_dict)
-        index = unf_utils.get_archive_index(resource, resource_view)
+        index = unf_jobs.get_index(resource, resource_view)
+    except unf_exception.ArchiveProcessing:
+        return {"status": unf_jobs.PROCESSING}
     except unf_exception.UnfoldError as e:
         return _error_payload(data_dict["id"], e)
 
@@ -110,6 +118,28 @@ def search_archive_structure(
             for n in result.results
         ],
     }
+
+
+@tk.side_effect_free
+@validate(unf_schema.get_archive_status)
+def get_archive_status(
+    context: types.Context, data_dict: dict[str, Any]
+) -> dict[str, Any]:
+    """Tell whether an archive's listing is ready, for the widget to poll.
+
+    Never reads the archive or queues anything, it only looks at Redis, so it
+    is cheap enough to call every couple of seconds.
+
+    Returns ``{"status": status}`` where ``status`` is ``ready`` (ask
+    ``get_archive_structure``), ``processing`` (a background job is reading the
+    archive; ask again shortly), ``failed`` (the job could not read it, and
+    ``error`` is the ``{"code", "message"}`` the structure actions return) or
+    ``missing`` (nothing is cached and nothing is running; asking
+    ``get_archive_structure`` starts a job).
+    """
+    resource, resource_view = _load_resource_and_view(context, data_dict)
+
+    return unf_jobs.get_status(resource, resource_view)
 
 
 def _load_resource_and_view(
@@ -188,9 +218,7 @@ def resource_view_create(
 ) -> dict[str, Any]:
     """Warm the archive index cache as soon as an Unfold view is added."""
     view = next_action(context, data_dict)
-
-    if view.get("view_type") == VIEW_TYPE:
-        unf_jobs.enqueue_cache_warm(view["resource_id"], view["id"])
+    _warm_cache(view)
 
     return view
 
@@ -203,11 +231,19 @@ def resource_view_update(
     invalidates the cached index (see ``cache_version``), so re-warm it.
     """
     view = next_action(context, data_dict)
-
-    if view.get("view_type") == VIEW_TYPE:
-        unf_jobs.enqueue_cache_warm(view["resource_id"], view["id"])
+    _warm_cache(view)
 
     return view
+
+
+def _warm_cache(view: dict[str, Any]) -> None:
+    if view.get("view_type") != VIEW_TYPE:
+        return
+
+    resource = tk.get_action("resource_show")(
+        {"ignore_auth": True}, {"id": view["resource_id"]}
+    )
+    unf_jobs.enqueue_cache_warm(resource, view)
 
 
 def _strip_password_if_unauthorized(

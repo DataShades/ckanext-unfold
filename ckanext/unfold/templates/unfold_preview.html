@@ -56,6 +56,12 @@
         <button class="unf-tree-retry btn btn-sm btn-outline-danger" type="button" hidden>{{ _("Retry") }}</button>
     </div>
 
+    {# shown while a background job reads the archive, see unfold-init-jstree.js #}
+    <div class="unf-tree-processing alert alert-info" role="status" hidden>
+        <span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
+        {{ _("This archive is being processed. The listing will appear here as soon as it is ready.") }}
+    </div>
+
     {# header and body are one panel, so a fatal error can hide both at once #}
     <div class="unfold-panel">
         <div class="pseudo-table-header">

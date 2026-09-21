@@ -11,6 +11,12 @@ ckan.module("unfold-init-jstree", function ($, _) {
             searchDebounce: 250,
             pageSize: 500,
             showContextMenu: true,
+            // While a background job reads the archive: the first status check
+            // comes after `pollInterval` ms, each next one 1.5x later up to
+            // `pollMaxInterval`, and the wait is given up after `waitTimeout`.
+            pollInterval: 1500,
+            pollMaxInterval: 5000,
+            waitTimeout: 300000,
         },
 
         initialize: function () {
@@ -23,6 +29,7 @@ ckan.module("unfold-init-jstree", function ($, _) {
             this.errorBlock = this.el.find(".unf-tree-error");
             this.errorMessage = this.errorBlock.find(".unfold-error-message");
             this.retryButton = this.el.find(".unf-tree-retry");
+            this.processing = this.el.find(".unf-tree-processing");
             // re-runs the request whose failure is currently displayed
             this.retry = null;
             this.loadState = this.el.find(".unfold-load-state");
@@ -36,6 +43,12 @@ ckan.module("unfold-init-jstree", function ($, _) {
             this.controls = this.el.find(
                 ".unf-search-input, .unf-search-run, .unf-expand-all, .unf-collapse-all"
             );
+            // set while waiting for the background job: when the wait began
+            // (so re-requests do not restart the clock), the next poll's
+            // delay, and its timer
+            this._waitStarted = null;
+            this._pollDelay = 0;
+            this._pollTimer = null;
             // "full": every node is in the DOM; "lazy": folders load on open
             this.mode = null;
             this.total = 0;
@@ -81,6 +94,9 @@ ckan.module("unfold-init-jstree", function ($, _) {
         },
 
         teardown: function () {
+            this._tornDown = true;
+            this._stopWaiting();
+
             if (this._metadataObserver) {
                 this._metadataObserver.disconnect();
             }
@@ -123,6 +139,18 @@ ckan.module("unfold-init-jstree", function ($, _) {
                 .done((response) => {
                     const result = response.result;
 
+                    if (result.status === "processing") {
+                        // A background job is reading the archive. Nothing to
+                        // show yet: jstree gets an empty root (or leaves the
+                        // folder unloaded) and this request is repeated
+                        // once the job is done.
+                        callback.call(instance, node.id === "#" ? [] : false);
+                        this._awaitArchive(retry, node.id === "#");
+                        return;
+                    }
+
+                    this._stopWaiting();
+
                     if (result.error) {
                         // the archive itself could not be read: there is no
                         // tree to fall back to, so the panel comes down
@@ -153,6 +181,8 @@ ckan.module("unfold-init-jstree", function ($, _) {
                     callback.call(instance, nodes);
                 })
                 .fail((xhr) => {
+                    this._stopWaiting();
+
                     if (node.id === "#") {
                         // An empty root lets jstree finish initialising and
                         // drop its own "Loading ..." row; refresh() re-runs
@@ -181,6 +211,90 @@ ckan.module("unfold-init-jstree", function ($, _) {
         _setBusy: function (busy) {
             this.loadState.prop("hidden", !busy);
             this.tree.attr("aria-busy", busy ? "true" : "false");
+        },
+
+        /**
+         * Wait for the background job that is reading the archive, then call
+         * `retry` to repeat the request that found it unfinished.
+         *
+         * Polls the lightweight `get_archive_status` action, which never
+         * touches the archive, so a web worker is never held up by it. Each
+         * call schedules one check; the check calls this again while the job
+         * is still running. `fatal` says nothing can be shown until it is
+         * done (the root folder), so the panel is taken down meanwhile.
+         */
+        _awaitArchive: function (retry, fatal) {
+            // a response that was in flight when the module went away
+            if (this._tornDown) {
+                return;
+            }
+
+            if (this._waitStarted === null) {
+                this._waitStarted = Date.now();
+                this._pollDelay = this.options.pollInterval;
+            }
+
+            this.processing.prop("hidden", false);
+
+            if (fatal) {
+                this.panel.prop("hidden", true);
+                this.controls.prop("disabled", true);
+                this.meta.text("");
+            }
+
+            clearTimeout(this._pollTimer);
+            this._pollTimer = setTimeout(() => this._checkStatus(retry, fatal), this._pollDelay);
+            this._pollDelay = Math.min(this._pollDelay * 1.5, this.options.pollMaxInterval);
+        },
+
+        _checkStatus: function (retry, fatal) {
+            $.ajax({
+                url: this.sandbox.url("/api/action/get_archive_status"),
+                data: this._payload({}),
+            })
+                .done((response) => {
+                    const status = response.result.status;
+
+                    if (status === "processing") {
+                        if (Date.now() - this._waitStarted > this.options.waitTimeout) {
+                            this._stopWaiting();
+                            this._displayErrorReason(
+                                ckan.i18n._("The archive is still being processed. Try again in a few minutes."),
+                                { retry: retry, fatal: fatal }
+                            );
+                            return;
+                        }
+
+                        this._awaitArchive(retry, fatal);
+                        return;
+                    }
+
+                    if (status === "failed") {
+                        this._stopWaiting();
+                        this._displayApiError(response.result.error, { retry: retry, fatal: fatal });
+                        return;
+                    }
+
+                    // "ready", or "missing": nothing is running any more (the
+                    // job's record expired), and asking again starts a new
+                    // job. Either way the request that got "processing" is
+                    // repeated, which also ends the wait once it succeeds.
+                    retry();
+                })
+                .fail((xhr) => {
+                    this._stopWaiting();
+                    this._displayErrorReason(
+                        this._requestFailure(ckan.i18n._("Could not check the archive status"), xhr),
+                        { retry: retry, fatal: fatal }
+                    );
+                });
+        },
+
+        _stopWaiting: function () {
+            clearTimeout(this._pollTimer);
+            this._pollTimer = null;
+            this._waitStarted = null;
+            this.processing.prop("hidden", true);
         },
 
         _requestFailure: function (message, xhr) {
@@ -261,6 +375,14 @@ ckan.module("unfold-init-jstree", function ($, _) {
                 .done((response) => {
                     const result = response.result;
 
+                    if (result.status === "processing") {
+                        // the index expired since the tree was loaded
+                        this._awaitArchive(() => this._search(query), false);
+                        return;
+                    }
+
+                    this._stopWaiting();
+
                     if (result.error) {
                         this._displayApiError(result.error, { retry: () => this._search(query) });
                         return;
@@ -281,10 +403,13 @@ ckan.module("unfold-init-jstree", function ($, _) {
                 })
                 // whatever is on screen - the tree or the previous result
                 // list - is still valid, so only the message is added
-                .fail((xhr) => this._displayErrorReason(
-                    this._requestFailure(ckan.i18n._("Search failed"), xhr),
-                    { retry: () => this._search(query) }
-                ))
+                .fail((xhr) => {
+                    this._stopWaiting();
+                    this._displayErrorReason(
+                        this._requestFailure(ckan.i18n._("Search failed"), xhr),
+                        { retry: () => this._search(query) }
+                    );
+                })
                 .always(() => this._setBusy(false));
         },
 

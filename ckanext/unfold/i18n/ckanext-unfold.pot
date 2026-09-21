@@ -250,3 +250,21 @@ msgstr ""
 msgid "Date Modified"
 msgstr ""
 
+
+#: ckanext/unfold/templates/unfold_preview.html:62
+msgid ""
+"This archive is being processed. The listing will appear here as soon as it "
+"is ready."
+msgstr ""
+
+#: ckanext/unfold/assets/js/unfold-init-jstree.js:262
+msgid "The archive is still being processed. Try again in a few minutes."
+msgstr ""
+
+#: ckanext/unfold/assets/js/unfold-init-jstree.js:287
+msgid "Could not check the archive status"
+msgstr ""
+
+#: ckanext/unfold/jobs.py:235
+msgid "The archive could not be processed"
+msgstr ""

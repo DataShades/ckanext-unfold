@@ -105,6 +105,7 @@ class UnfoldCacheManager:
     """
 
     _PREFIX = "ckanext:unfold:index:"
+    _STATUS_PREFIX = "ckanext:unfold:status:"
     _BATCH = 1000
 
     @classmethod
@@ -115,6 +116,10 @@ class UnfoldCacheManager:
     @classmethod
     def _key(cls, resource_id: str) -> str:
         return f"{cls._PREFIX}{resource_id}"
+
+    @classmethod
+    def _status_key(cls, resource_id: str) -> str:
+        return f"{cls._STATUS_PREFIX}{resource_id}"
 
     @classmethod
     def save(cls, index: ArchiveIndex, resource_id: str, version: str) -> None:
@@ -160,10 +165,15 @@ class UnfoldCacheManager:
 
         Uses ``SCAN`` rather than ``KEYS``: safe to run against a Redis
         instance shared with the rest of CKAN without blocking it, however
-        many keys exist.
+        many keys exist. Build statuses (see :meth:`status`) go too, without
+        being counted.
         """
         conn = cls._ensure_conn()
+        status_keys = list(conn.scan_iter(match=f"{cls._STATUS_PREFIX}*"))
         keys = list(conn.scan_iter(match=f"{cls._PREFIX}*"))
+
+        if status_keys:
+            conn.delete(*status_keys)
 
         if not keys:
             return 0
@@ -220,8 +230,85 @@ class UnfoldCacheManager:
 
     @classmethod
     def delete(cls, resource_id: str) -> int:
-        """Delete the resource's cache entry. Returns 1 if one existed, else 0."""
-        return cls._ensure_conn().delete(cls._key(resource_id))
+        """Delete the resource's cache entry. Returns 1 if one existed, else 0.
+
+        Its build status goes with it, so the next view starts from scratch.
+        """
+        conn = cls._ensure_conn()
+        conn.delete(cls._status_key(resource_id))
+
+        return conn.delete(cls._key(resource_id))
+
+    # Build status
+    #
+    # While an index is missing, one small record per resource (a plain string
+    # key, apart from the index hash so that ``save`` replacing the hash cannot
+    # wipe it) tracks the background job that is producing it:
+    #
+    #   {"version": "...", "state": "pending"}
+    #   {"version": "...", "state": "failed",
+    #    "error": {"code": "...", "message": "..."}}
+    #
+    # ``version`` is :func:`cache_version`'s fingerprint, so a record left by an
+    # older state of the resource or its view is never mistaken for the current
+    # one. Records expire on their own: a pending one shortly after the job
+    # would have been killed (so a crashed worker cannot leave a page
+    # "processing" forever), a failed one with the cache TTL.
+
+    @classmethod
+    def status(cls, resource_id: str) -> dict[str, Any] | None:
+        raw = cls._ensure_conn().get(cls._status_key(resource_id))
+
+        return json.loads(raw) if raw else None  # type: ignore
+
+    @classmethod
+    def claim_build(cls, resource_id: str, version: str, ttl: int) -> bool:
+        """Mark a build of ``version`` as pending; ``False`` if one already is.
+
+        This is what stops a crowd of first-time visitors from each enqueueing
+        a job: only the caller that gets ``True`` should enqueue. A failed
+        record, or one for another version, is replaced.
+        """
+        conn = cls._ensure_conn()
+        key = cls._status_key(resource_id)
+        record = json.dumps({"version": version, "state": "pending"})
+
+        if conn.set(key, record, nx=True, ex=ttl):
+            return True
+
+        current = cls.status(resource_id)
+
+        if current and current["version"] == version and current["state"] == "pending":
+            return False
+
+        conn.set(key, record, ex=ttl)
+
+        return True
+
+    @classmethod
+    def release_build(cls, resource_id: str, version: str) -> None:
+        """Drop the pending record of ``version``, e.g. when its job never got
+        enqueued or has finished. A record of another version is left alone.
+        """
+        current = cls.status(resource_id)
+
+        if current and current["version"] == version:
+            cls._ensure_conn().delete(cls._status_key(resource_id))
+
+    @classmethod
+    def fail_build(
+        cls, resource_id: str, version: str, code: str, message: str
+    ) -> None:
+        record = json.dumps(
+            {
+                "version": version,
+                "state": "failed",
+                "error": {"code": code, "message": message},
+            }
+        )
+        cls._ensure_conn().set(
+            cls._status_key(resource_id), record, ex=unf_config.get_cache_ttl()
+        )
 
 
 class CachedIndex:
@@ -265,32 +352,60 @@ class CachedIndex:
         return build_search_result(matched, matches, limit, nodes)
 
 
+def is_index_cached(resource: dict[str, Any], resource_view: dict[str, Any]) -> bool:
+    """Whether Redis holds a current index for this resource and view."""
+    return unf_config.is_cache_enabled() and UnfoldCacheManager.version(
+        resource["id"]
+    ) == cache_version(resource, resource_view)
+
+
+def get_cached_index(
+    resource: dict[str, Any], resource_view: dict[str, Any]
+) -> CachedIndex | None:
+    """The archive's index from Redis, or ``None`` if it is not (validly) there.
+
+    Never reads the archive itself, so it is safe on the request path.
+    """
+    if not unf_config.is_cache_enabled():
+        return None
+
+    cached_version = UnfoldCacheManager.version(resource["id"])
+
+    if cached_version == cache_version(resource, resource_view):
+        cached = CachedIndex(resource["id"])
+        log.info(
+            "Resource %s: serving %s entries from the Redis index",
+            resource["id"],
+            cached.total,
+        )
+        return cached
+
+    if cached_version is not None:
+        log.info(
+            "Resource %s: cached index is stale (url, format, "
+            "metadata_modified or the view's password changed); rebuilding",
+            resource["id"],
+        )
+
+    return None
+
+
 def get_archive_index(
     resource: dict[str, Any], resource_view: dict[str, Any]
 ) -> ArchiveIndex | CachedIndex:
-    """Return the archive's folder index, building and caching it if needed."""
+    """Return the archive's folder index, building and caching it if needed.
+
+    Building fetches and parses the archive right here, which can take a
+    minute; requests should go through :func:`ckanext.unfold.jobs.get_index`
+    instead, and leave that to a background job when one can do it.
+    """
+    cached = get_cached_index(resource, resource_view)
+
+    if cached is not None:
+        return cached
+
     cache_enabled = unf_config.is_cache_enabled()
     version = cache_version(resource, resource_view)
-
-    if cache_enabled:
-        cached_version = UnfoldCacheManager.version(resource["id"])
-
-        if cached_version == version:
-            cached = CachedIndex(resource["id"])
-            log.info(
-                "Resource %s: serving %s entries from the Redis index",
-                resource["id"],
-                cached.total,
-            )
-            return cached
-
-        if cached_version is not None:
-            log.info(
-                "Resource %s: cached index is stale (url, format, "
-                "metadata_modified or the view's password changed); rebuilding",
-                resource["id"],
-            )
-
     started = time.monotonic()
     log.info(
         "Building archive index for resource %s (%s, cache %s)",

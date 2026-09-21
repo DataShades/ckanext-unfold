@@ -17,3 +17,11 @@ class UnfoldError(Exception):
     def __init__(self, message: str = "", code: str = GENERIC) -> None:
         super().__init__(message)
         self.code = code
+
+
+class ArchiveProcessing(Exception):
+    """The archive's index is being built by a background job.
+
+    Not an :class:`UnfoldError`: nothing is wrong with the archive, the
+    caller just has to ask again shortly (see ``get_archive_status``).
+    """

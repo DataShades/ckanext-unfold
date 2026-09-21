@@ -57,6 +57,31 @@ groups:
           Per-request HTTP timeout, in seconds, used for every request made while
           fetching a remote resource (connect and read).
 
+      - key: ckanext.unfold.build_in_background
+        type: bool
+        default: true
+        description: |
+          Read an archive that is not cached yet in a CKAN background job
+          (`ckan jobs worker`) instead of inside the web request that asked for
+          it. The widget shows a "processing" notice and polls until the listing
+          is ready, so a slow origin or a large archive never ties up a web
+          worker. Needs `ckanext.unfold.enable_cache`, since the job hands the
+          result over through the cache. If no job worker is running the
+          archive is read inside the request, as if this were off. In that case
+          keep `ckanext.unfold.request_timeout` below your web server's
+          request limit (uWSGI harakiri, gunicorn timeout).
+
+      - key: ckanext.unfold.job_timeout
+        type: int
+        default: 600
+        validators: is_positive_integer
+        description: |
+          Maximum time, in seconds, a background job may spend reading one
+          archive before it is stopped and the widget shows an error. Only used
+          when `ckanext.unfold.build_in_background` is on. This replaces
+          `ckan.jobs.timeout` for Unfold's jobs, so it can be raised for slow
+          origins without affecting other extensions.
+
       - key: ckanext.unfold.cache_ttl
         type: int
         default: 86400 # 24 hours

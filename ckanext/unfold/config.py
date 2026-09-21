@@ -10,6 +10,8 @@ CONF_CACHE_TTL = "ckanext.unfold.cache_ttl"
 CONF_ZIP_TAIL_BLOCK_SIZE = "ckanext.unfold.zip_tail_block_size"
 CONF_MAX_ENTRIES = "ckanext.unfold.max_entries"
 CONF_MAX_DECOMPRESSED_SIZE = "ckanext.unfold.max_decompressed_size"
+CONF_BUILD_IN_BACKGROUND = "ckanext.unfold.build_in_background"
+CONF_JOB_TIMEOUT = "ckanext.unfold.job_timeout"
 
 
 def is_cache_enabled() -> bool:
@@ -59,3 +61,13 @@ def get_max_entries() -> int:
 def get_max_decompressed_size() -> int:
     """Maximum decompressed size, in bytes, allowed while reading a compressed tar."""
     return tk.config[CONF_MAX_DECOMPRESSED_SIZE]
+
+
+def is_background_build_enabled() -> bool:
+    """Whether an uncached archive is read by a background job, not the request."""
+    return tk.config[CONF_BUILD_IN_BACKGROUND]
+
+
+def get_job_timeout() -> int:
+    """How long, in seconds, one background job may run before it is killed."""
+    return tk.config[CONF_JOB_TIMEOUT]
