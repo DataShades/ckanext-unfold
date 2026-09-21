@@ -31,7 +31,7 @@ import requests
 
 import ckan.plugins.toolkit as tk
 
-from ckanext.unfold.exception import UnfoldError
+from ckanext.unfold.exception import FETCH_FAILED, TOO_LARGE, UnfoldError
 from ckanext.unfold.formatting import printable_file_size
 
 log = logging.getLogger(__name__)
@@ -62,7 +62,7 @@ def limit_message(max_bytes: int) -> str:
 def check_limit(size: int | None, max_bytes: int) -> None:
     """Raise if ``size`` exceeds ``max_bytes``. ``None`` (unknown) passes."""
     if size is not None and size > max_bytes:
-        raise UnfoldError(limit_message(max_bytes))
+        raise UnfoldError(limit_message(max_bytes), code=TOO_LARGE)
 
 
 def content_length(value: str | None) -> int | None:
@@ -128,11 +128,11 @@ def validate_url(url: str) -> None:
 
     if parsed.scheme not in ALLOWED_SCHEMES or not parsed.hostname:
         log.warning("Refusing to fetch %s: not an http(s) URL", url)
-        raise UnfoldError(tk._("Could not fetch the archive"))
+        raise UnfoldError(tk._("Could not fetch the archive"), code=FETCH_FAILED)
 
     if not _resolves_to_public_address(parsed.hostname):
         log.warning("Refusing to fetch %s: resolves to a non-public address", url)
-        raise UnfoldError(tk._("Could not fetch the archive"))
+        raise UnfoldError(tk._("Could not fetch the archive"), code=FETCH_FAILED)
 
 
 def safe_get(
@@ -165,11 +165,13 @@ def safe_get(
         resp.close()
 
         if not location:
-            raise UnfoldError(tk._("Could not fetch the archive"))
+            raise UnfoldError(tk._("Could not fetch the archive"), code=FETCH_FAILED)
 
         url = urljoin(url, location)
 
-    raise UnfoldError(tk._("Too many redirects while fetching the archive"))
+    raise UnfoldError(
+        tk._("Too many redirects while fetching the archive"), code=FETCH_FAILED
+    )
 
 
 def read_limited(resp: requests.Response, max_bytes: int) -> bytes:
@@ -256,7 +258,7 @@ def fetch_full(url: str, max_bytes: int, timeout: float = DEFAULT_TIMEOUT) -> IO
             sink = download_limited(resp, max_bytes)
     except requests.RequestException as e:
         raise UnfoldError(
-            tk._("Could not fetch archive: %(error)s") % {"error": e}
+            tk._("Could not fetch archive: %(error)s") % {"error": e}, code=FETCH_FAILED
         ) from e
 
     size = sink.tell()
@@ -397,7 +399,8 @@ class RemoteRangeFile(io.RawIOBase):
         if time.monotonic() > self.deadline:
             raise UnfoldError(
                 tk._("Reading the remote archive took longer than %(seconds)s seconds")
-                % {"seconds": TOTAL_TIME_BUDGET}
+                % {"seconds": TOTAL_TIME_BUDGET},
+                code=FETCH_FAILED,
             )
 
         log.info(
@@ -422,7 +425,8 @@ class RemoteRangeFile(io.RawIOBase):
                     raise UnfoldError(
                         tk._(
                             "The server does not support partial downloads (HTTP Range)"
-                        )
+                        ),
+                        code=FETCH_FAILED,
                     )
 
                 # Bounded to `wanted`, not just `max_bytes`: a server that
@@ -431,11 +435,14 @@ class RemoteRangeFile(io.RawIOBase):
                 data = read_limited(resp, wanted)
         except requests.RequestException as e:
             raise UnfoldError(
-                tk._("Could not fetch remote archive: %(error)s") % {"error": e}
+                tk._("Could not fetch remote archive: %(error)s") % {"error": e},
+                code=FETCH_FAILED,
             ) from e
 
         if len(data) != wanted:
-            raise UnfoldError(tk._("The server returned an incomplete byte range"))
+            raise UnfoldError(
+                tk._("The server returned an incomplete byte range"), code=FETCH_FAILED
+            )
 
         self.bytes_fetched += len(data)
         self.requests_made += 1
@@ -500,13 +507,17 @@ def open_remote(
             total = total_from_content_range(resp.headers.get("content-range"))
 
             if total is None:
-                raise UnfoldError(tk._("The server returned an invalid Content-Range"))
+                raise UnfoldError(
+                    tk._("The server returned an invalid Content-Range"),
+                    code=FETCH_FAILED,
+                )
 
             final_url = resp.url
             tail = read_limited(resp, max_bytes)
     except requests.RequestException as e:
         raise UnfoldError(
-            tk._("Could not fetch remote archive: %(error)s") % {"error": e}
+            tk._("Could not fetch remote archive: %(error)s") % {"error": e},
+            code=FETCH_FAILED,
         ) from e
 
     if len(tail) >= total:

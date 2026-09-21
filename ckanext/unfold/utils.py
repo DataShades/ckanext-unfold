@@ -303,7 +303,10 @@ def get_archive_tree(
 
     if adapter_cls is None:
         res_format = (resource.get("format") or "").lower()
-        raise unf_exception.UnfoldError(f"No adapter for `{res_format}` archives")
+        raise unf_exception.UnfoldError(
+            f"No adapter for `{res_format}` archives",
+            code=unf_exception.UNSUPPORTED_FORMAT,
+        )
 
     return _build_archive_tree(adapter_cls, resource_view, resource)
 

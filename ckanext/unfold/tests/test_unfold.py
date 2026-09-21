@@ -220,16 +220,20 @@ def _encrypted_7z(header_encryption: bool) -> bytes:
 def test_7z_with_encrypted_entries_is_rejected_with_a_message(serve):
     url = serve("secret.7z", _encrypted_7z(header_encryption=False))
 
-    with pytest.raises(exception.UnfoldError, match="protected with password"):
+    with pytest.raises(exception.UnfoldError, match="protected with password") as info:
         build_tree("7z", url)
+
+    assert info.value.code == exception.PASSWORD_REQUIRED
 
 
 @pytest.mark.usefixtures("with_request_context")
 def test_7z_with_encrypted_headers_is_rejected_with_a_message(serve):
     url = serve("secret-headers.7z", _encrypted_7z(header_encryption=True))
 
-    with pytest.raises(exception.UnfoldError, match="protected with password"):
+    with pytest.raises(exception.UnfoldError, match="protected with password") as info:
         build_tree("7z", url)
+
+    assert info.value.code == exception.PASSWORD_REQUIRED
 
 
 class ExplodingAdapter(ZipAdapter):
@@ -249,6 +253,7 @@ def test_unexpected_library_errors_become_unfold_errors(caplog):
     ):
         ExplodingAdapter(resource, {}).build_archive_tree()
 
+    assert info.value.code == exception.UNREADABLE
     assert isinstance(info.value.__cause__, RuntimeError)
     assert "res-boom" in caplog.text
     assert "RuntimeError: library internals" in caplog.text
@@ -301,8 +306,10 @@ def test_full_download_rejects_advertised_content_length(requests_mock):
     url = BASE_URL + "big.tar"
     requests_mock.get(url, content=b"x" * 2048, headers={"Content-Length": "2048"})
 
-    with pytest.raises(exception.UnfoldError, match="exceeds maximum allowed"):
+    with pytest.raises(exception.UnfoldError, match="exceeds maximum allowed") as info:
         build_tree("tar", url)
+
+    assert info.value.code == exception.TOO_LARGE
 
 
 @pytest.mark.ckan_config("ckanext.unfold.max_file_size", 1024)
@@ -312,8 +319,10 @@ def test_full_download_aborts_stream_without_content_length(requests_mock):
     # no Content-Length header: only the streaming guard can catch it
     requests_mock.get(url, content=b"x" * 2048)
 
-    with pytest.raises(exception.UnfoldError, match="exceeds maximum allowed"):
+    with pytest.raises(exception.UnfoldError, match="exceeds maximum allowed") as info:
         build_tree("tar", url)
+
+    assert info.value.code == exception.TOO_LARGE
 
 
 @pytest.mark.usefixtures("with_request_context")
@@ -321,8 +330,10 @@ def test_http_error_becomes_unfold_error(requests_mock):
     url = BASE_URL + "missing.tar"
     requests_mock.get(url, status_code=404)
 
-    with pytest.raises(exception.UnfoldError, match="Could not fetch archive"):
+    with pytest.raises(exception.UnfoldError, match="Could not fetch archive") as info:
         build_tree("tar", url)
+
+    assert info.value.code == exception.FETCH_FAILED
 
 
 # --- zip: reading only the central directory ---------------------------------

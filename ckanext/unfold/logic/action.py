@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from ckan import types
@@ -15,6 +16,8 @@ import ckanext.unfold.logic.schema as unf_schema
 import ckanext.unfold.types as unf_types
 import ckanext.unfold.utils as unf_utils
 
+
+log = logging.getLogger(__name__)
 
 VIEW_TYPE = "unfold_view"
 
@@ -40,13 +43,14 @@ def get_archive_structure(
       ``has_more`` tell the widget whether to offer a "show more" row.
       Folders carry ``children: true`` and are requested when opened.
 
-    Returns ``{"error": message}`` when the archive cannot be read.
+    Returns ``{"error": {"code": code, "message": message}}`` when the archive
+    cannot be read; see :func:`_error_payload`.
     """
     try:
         resource, resource_view = _load_resource_and_view(context, data_dict)
         index = unf_utils.get_archive_index(resource, resource_view)
     except unf_exception.UnfoldError as e:
-        return {"error": str(e)}
+        return _error_payload(data_dict["id"], e)
 
     if index.total <= unf_config.get_expand_nodes_threshold():
         return {
@@ -87,7 +91,7 @@ def search_archive_structure(
         resource, resource_view = _load_resource_and_view(context, data_dict)
         index = unf_utils.get_archive_index(resource, resource_view)
     except unf_exception.UnfoldError as e:
-        return {"error": str(e)}
+        return _error_payload(data_dict["id"], e)
 
     limit = data_dict.get("limit") or unf_index.DEFAULT_SEARCH_LIMIT
     result = index.search(data_dict["q"], limit)
@@ -125,9 +129,27 @@ def _load_resource_and_view(
         resource_view = _core_resource_view_show(context, {"id": data_dict["view_id"]})
 
         if resource_view.get("resource_id") != resource["id"]:
-            raise unf_exception.UnfoldError(tk._("View does not belong to resource"))
+            raise tk.ValidationError(
+                {"view_id": [tk._("View does not belong to resource")]}
+            )
 
     return resource, resource_view
+
+
+def _error_payload(
+    resource_id: str, error: unf_exception.UnfoldError
+) -> dict[str, Any]:
+    """The API result for an archive that cannot be listed, after logging it.
+
+    The response is still HTTP 200, since the request itself was valid and the
+    problem is with the archive: ``error.code`` (see ``ckanext.unfold.exception``)
+    tells a client which problem it was without parsing the translated
+    ``error.message``. Callers that made a mistake (a view of another resource)
+    get a ``ValidationError`` instead.
+    """
+    log.warning("Resource %s: %s (%s)", resource_id, error, error.code)
+
+    return {"error": {"code": error.code, "message": str(error)}}
 
 
 @tk.chained_action

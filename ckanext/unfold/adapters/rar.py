@@ -32,7 +32,8 @@ class RarAdapter(BaseAdapter):
 
             if needs_password and not self.resource_view.get("archive_pass"):
                 raise unf_exception.UnfoldError(
-                    tk._("Archive is protected with password")
+                    tk._("Archive is protected with password"),
+                    code=unf_exception.PASSWORD_REQUIRED,
                 )
 
             if needs_password:
@@ -42,7 +43,8 @@ class RarAdapter(BaseAdapter):
                 file_list = archive.infolist()
             except rarfile.RarWrongPassword as e:
                 raise unf_exception.UnfoldError(
-                    tk._("The archive password is incorrect")
+                    tk._("The archive password is incorrect"),
+                    code=unf_exception.PASSWORD_INCORRECT,
                 ) from e
 
         if not file_list:
@@ -52,7 +54,8 @@ class RarAdapter(BaseAdapter):
             # carries a check value to verify against.
             if needs_password:
                 raise unf_exception.UnfoldError(
-                    tk._("The archive password is incorrect")
+                    tk._("The archive password is incorrect"),
+                    code=unf_exception.PASSWORD_INCORRECT,
                 )
 
             raise unf_exception.UnfoldError(tk._("The archive is empty"))

@@ -47,7 +47,8 @@ class _BoundedReader(io.RawIOBase):
 
         if self._read > self._budget:
             raise unf_exception.UnfoldError(
-                tk._("Archive decompresses to more than the allowed size")
+                tk._("Archive decompresses to more than the allowed size"),
+                code=unf_exception.TOO_LARGE,
             )
 
         return chunk

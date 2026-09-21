@@ -68,11 +68,18 @@ downloaded in full and are subject to `ckanext.unfold.max_file_size`.
 - `get_archive_structure` (`id`, optional `view_id`, `parent`, `limit`):
   returns `{"mode": "full" | "lazy", "total": n, "nodes": [...]}`. In lazy
   mode `nodes` are the first `limit` direct children of `parent` (default
-  `#`), with `children_total` and `has_more`. On failure returns
-  `{"error": "..."}`.
+  `#`), with `children_total` and `has_more`.
 - `search_archive_structure` (`id`, optional `view_id`, `q`, optional `limit`):
   returns `{"results": [{id, text, icon, is_dir, size, modified_at}, ...],
   "ids": [...folders to open...], "matches": n, "truncated": bool}`.
+
+Both actions return `{"error": {"code": "...", "message": "..."}}` with HTTP
+200 when the archive itself cannot be listed. `message` is translated and meant
+for people; `code` is stable and is one of `password_required`,
+`password_incorrect`, `too_large`, `fetch_failed`, `unsupported_format`,
+`unreadable`, or `error` when nothing more specific applies. Every such failure
+is also logged at WARNING with the resource id. A `view_id` that belongs to
+another resource is a caller mistake and raises a `ValidationError` instead.
 
 ## Signals
 

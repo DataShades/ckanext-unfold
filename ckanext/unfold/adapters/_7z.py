@@ -22,11 +22,13 @@ class SevenZipAdapter(BaseAdapter):
             # raised on open when the header itself is encrypted; not an
             # ArchiveError subclass
             raise unf_exception.UnfoldError(
-                tk._("Archive is protected with password")
+                tk._("Archive is protected with password"),
+                code=unf_exception.PASSWORD_REQUIRED,
             ) from e
         except exceptions.ArchiveError as e:
             raise unf_exception.UnfoldError(
-                tk._("Could not open archive: %(error)s") % {"error": e}
+                tk._("Could not open archive: %(error)s") % {"error": e},
+                code=unf_exception.UNREADABLE,
             ) from e
 
         return self.build_nodes(entries)
@@ -44,7 +46,8 @@ class SevenZipAdapter(BaseAdapter):
 
             if archive.needs_password() and not password:
                 raise unf_exception.UnfoldError(
-                    tk._("Archive is protected with password")
+                    tk._("Archive is protected with password"),
+                    code=unf_exception.PASSWORD_REQUIRED,
                 )
 
             return [self._to_entry(info) for info in archive.list()]

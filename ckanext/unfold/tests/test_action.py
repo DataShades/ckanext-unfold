@@ -137,7 +137,12 @@ def test_unsupported_format_is_an_error_payload():
 
     result = call_action("get_archive_structure", id=resource["id"])
 
-    assert result == {"error": "No adapter for `csv` archives"}
+    assert result == {
+        "error": {
+            "code": "unsupported_format",
+            "message": "No adapter for `csv` archives",
+        }
+    }
 
 
 def test_unreachable_archive_is_an_error_payload():
@@ -148,7 +153,23 @@ def test_unreachable_archive_is_an_error_payload():
         result = call_action("get_archive_structure", id=resource["id"])
 
     assert list(result) == ["error"]
-    assert result["error"].startswith("Could not fetch remote archive")
+    assert result["error"]["code"] == "fetch_failed"
+    assert result["error"]["message"].startswith("Could not fetch remote archive")
+
+
+def test_archive_errors_are_logged_with_the_resource_id(caplog):
+    resource = factories.Resource(url=BASE_URL + "data.csv", format="csv")
+
+    with caplog.at_level("WARNING", logger="ckanext.unfold.logic.action"):
+        call_action("get_archive_structure", id=resource["id"])
+        call_action("search_archive_structure", id=resource["id"], q="x")
+
+    records = [r for r in caplog.records if r.name == "ckanext.unfold.logic.action"]
+
+    assert len(records) == 2
+    assert all(r.levelname == "WARNING" for r in records)
+    assert all(resource["id"] in r.getMessage() for r in records)
+    assert "unsupported_format" in records[0].getMessage()
 
 
 def test_view_of_another_resource_is_rejected(archive_resource):
@@ -164,12 +185,12 @@ def test_view_of_another_resource_is_rejected(archive_resource):
         title="Unfold",
     )
 
-    with served(ARCHIVE):
-        result = call_action(
+    with served(ARCHIVE), pytest.raises(tk.ValidationError) as info:
+        call_action(
             "get_archive_structure", id=archive_resource["id"], view_id=view["id"]
         )
 
-    assert result == {"error": "View does not belong to resource"}
+    assert info.value.error_dict == {"view_id": ["View does not belong to resource"]}
 
 
 def test_unknown_ids_fail_validation(archive_resource):

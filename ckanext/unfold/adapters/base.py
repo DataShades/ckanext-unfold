@@ -63,7 +63,8 @@ class BaseAdapter:
 
         if self.resource.get("type") == "tabledesigner":
             raise unf_exception.UnfoldError(
-                tk._("Table Designer resources are not supported")
+                tk._("Table Designer resources are not supported"),
+                code=unf_exception.UNSUPPORTED_FORMAT,
             )
 
         return resource_url
@@ -95,7 +96,9 @@ class BaseAdapter:
                 self.resource.get("format"),
                 self.filepath,
             )
-            raise unf_exception.UnfoldError(tk._("Could not read the archive")) from e
+            raise unf_exception.UnfoldError(
+                tk._("Could not read the archive"), code=unf_exception.UNREADABLE
+            ) from e
 
     def validate_size_limit(self) -> None:
         archive_size = self.resource.get("size")
@@ -172,7 +175,8 @@ class BaseAdapter:
                 return remote.spool(source)
             except files.exc.FilesError as e:
                 raise unf_exception.UnfoldError(
-                    tk._("Could not read uploaded archive: %(error)s") % {"error": e}
+                    tk._("Could not read uploaded archive: %(error)s") % {"error": e},
+                    code=unf_exception.FETCH_FAILED,
                 ) from e
 
         path = self._local_upload_path(upload)
@@ -182,7 +186,8 @@ class BaseAdapter:
                 return open(path, "rb")
             except OSError as e:
                 raise unf_exception.UnfoldError(
-                    tk._("Could not read uploaded archive: %(error)s") % {"error": e}
+                    tk._("Could not read uploaded archive: %(error)s") % {"error": e},
+                    code=unf_exception.FETCH_FAILED,
                 ) from e
 
         log.info(
@@ -248,7 +253,8 @@ class BaseAdapter:
             entries = self.iter_entries()
         except self.open_errors as e:
             raise unf_exception.UnfoldError(
-                tk._("Could not open archive: %(error)s") % {"error": e}
+                tk._("Could not open archive: %(error)s") % {"error": e},
+                code=unf_exception.UNREADABLE,
             ) from e
 
         return self.build_nodes(entries)

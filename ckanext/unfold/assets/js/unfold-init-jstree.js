@@ -110,6 +110,9 @@ ckan.module("unfold-init-jstree", function ($, _) {
             this._setBusy(true);
 
             const limit = this.folderLimits[node.id] || this.options.pageSize;
+            const retry = node.id === "#"
+                ? () => instance.refresh()
+                : () => instance.load_node(node.id, (loaded, ok) => ok && instance.open_node(loaded));
 
             $.ajax({
                 url: this.sandbox.url("/api/action/get_archive_structure"),
@@ -121,7 +124,7 @@ ckan.module("unfold-init-jstree", function ($, _) {
                     if (result.error) {
                         // the archive itself could not be read: there is no
                         // tree to fall back to, so the panel comes down
-                        this._displayErrorReason(result.error, { fatal: node.id === "#" });
+                        this._displayApiError(result.error, { retry: retry, fatal: node.id === "#" });
                         callback.call(instance, []);
                         return;
                     }
@@ -155,7 +158,7 @@ ckan.module("unfold-init-jstree", function ($, _) {
                         callback.call(instance, []);
                         this._displayErrorReason(
                             this._requestFailure(ckan.i18n._("Could not load the archive listing"), xhr),
-                            { retry: () => instance.refresh(), fatal: true }
+                            { retry: retry, fatal: true }
                         );
                         return;
                     }
@@ -166,7 +169,7 @@ ckan.module("unfold-init-jstree", function ($, _) {
                     // the rest of the tree is still valid, so it stays visible
                     this._displayErrorReason(
                         this._requestFailure(ckan.i18n._("Could not load folder %(name)s", { name: node.id }), xhr),
-                        { retry: () => instance.load_node(node.id, (loaded, ok) => ok && instance.open_node(loaded)) }
+                        { retry: retry }
                     );
                 })
                 .always(() => this._setBusy(false));
@@ -257,7 +260,7 @@ ckan.module("unfold-init-jstree", function ($, _) {
                     const result = response.result;
 
                     if (result.error) {
-                        this._displayErrorReason(result.error);
+                        this._displayApiError(result.error, { retry: () => this._search(query) });
                         return;
                     }
 
@@ -324,11 +327,26 @@ ckan.module("unfold-init-jstree", function ($, _) {
         },
 
         /**
+         * Show the `{code, message}` error the API returns for an archive it
+         * could not list. Only a failed download (`fetch_failed`) keeps the
+         * `options.retry` button: a wrong password or an archive over the size
+         * limit fails the same way every time.
+         */
+        _displayApiError: function (error, options) {
+            options = $.extend({}, options);
+
+            if (error.code !== "fetch_failed") {
+                delete options.retry;
+            }
+
+            this._displayErrorReason(error.message, options);
+        },
+
+        /**
          * Show `error` above the widget.
          *
-         * `options.retry` adds a Retry button that calls it; API errors such
-         * as a wrong password pass none, because repeating the request cannot
-         * help. `options.fatal` means nothing was loaded at all, so the tree
+         * `options.retry` adds a Retry button that calls it.
+         * `options.fatal` means nothing was loaded at all, so the tree
          * and its header are taken down with it - otherwise they keep showing
          * whatever loaded before the failure.
          */
