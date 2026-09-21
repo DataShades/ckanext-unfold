@@ -15,6 +15,7 @@ from ckan.lib.redis import connect_to_redis
 import ckanext.unfold.adapters as unf_adapters
 import ckanext.unfold.config as unf_config
 import ckanext.unfold.exception as unf_exception
+import ckanext.unfold.formats as unf_formats
 import ckanext.unfold.types as unf_types
 from ckanext.unfold.index import (
     DEFAULT_SEARCH_LIMIT,
@@ -301,7 +302,7 @@ def get_archive_tree(
     adapter_cls = get_adapter_for_resource(resource)
 
     if adapter_cls is None:
-        res_format = resource["format"].lower()
+        res_format = (resource.get("format") or "").lower()
         raise unf_exception.UnfoldError(f"No adapter for `{res_format}` archives")
 
     return _build_archive_tree(adapter_cls, resource_view, resource)
@@ -340,12 +341,11 @@ def get_adapter_for_resource(
       lookup by format. It only suppresses a *later custom* adapter, not the
       built-in one for that format.
 
-    Falls through to the default registry (``adapter_registry``) by
-    ``resource["format"]`` if every result is ``None`` (including no
-    subscribers at all).
+    Falls through to the default registry (``adapter_registry``) if every
+    result is ``None`` (including no subscribers at all). The registry key
+    comes from ``resource["format"]`` and the file extension of
+    ``resource["url"]``, see :func:`ckanext.unfold.formats.resolve`.
     """
-    res_format = resource["format"].lower()
-
     for _, adapter in get_adapter_for_resource_signal.send(resource):
         if adapter is None:
             continue
@@ -358,4 +358,7 @@ def get_adapter_for_resource(
 
         return adapter
 
-    return unf_adapters.adapter_registry.get(res_format)
+    registry = unf_adapters.adapter_registry
+    key = unf_formats.resolve(resource.get("format"), resource.get("url"), registry)
+
+    return registry[key] if key else None

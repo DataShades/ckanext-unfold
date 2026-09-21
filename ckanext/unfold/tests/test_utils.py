@@ -34,6 +34,25 @@ def test_registry_lookup_is_case_insensitive():
     assert utils.get_adapter_for_resource({"format": ""}) is None
 
 
+@pytest.mark.parametrize(
+    ("resource", "adapter"),
+    [
+        ({"format": "TGZ"}, tar.TarGzAdapter),
+        ({"format": "application/zip"}, ZipAdapter),
+        ({"format": "Zip Archive"}, ZipAdapter),
+        ({"format": "TAR", "url": "http://x.test/a.tar.gz"}, tar.TarGzAdapter),
+        ({"format": "TAR", "url": "http://x.test/a.tar"}, tar.TarAdapter),
+        ({"format": "", "url": "http://x.test/a.tar.xz?x=1"}, tar.TarXzAdapter),
+        ({"format": "GZ", "url": "http://x.test/a.tgz"}, tar.TarGzAdapter),
+        ({"format": "GZ", "url": "http://x.test/a.gz"}, None),
+        ({"format": "csv", "url": "http://x.test/a.csv"}, None),
+        ({"format": "csv"}, None),
+    ],
+)
+def test_adapter_lookup_normalizes_format_and_reads_url(resource, adapter):
+    assert utils.get_adapter_for_resource(resource) is adapter
+
+
 def test_signal_receiver_can_provide_an_adapter(subscribe):
     subscribe(lambda resource: CustomAdapter if resource["format"] == "csv" else None)
 

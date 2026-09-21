@@ -26,10 +26,25 @@ def invalidated(monkeypatch) -> list[str]:
 
 @pytest.mark.parametrize(
     ("fmt", "expected"),
-    [("zip", True), ("TAR.GZ", True), ("deb", True), ("csv", False), ("", False)],
+    [
+        ("zip", True),
+        ("TAR.GZ", True),
+        ("deb", True),
+        ("TGZ", True),
+        ("application/zip", True),
+        ("Zip Archive", True),
+        ("csv", False),
+        ("", False),
+    ],
 )
 def test_can_view_follows_the_adapter_registry(plugin, fmt: str, expected: bool):
     assert plugin.can_view({"resource": {"format": fmt}}) is expected
+
+
+def test_can_view_falls_back_to_the_url_extension(plugin):
+    resource = {"format": "", "url": "http://archives.test/data.zip"}
+
+    assert plugin.can_view({"resource": resource}) is True
 
 
 def test_view_info(plugin):
