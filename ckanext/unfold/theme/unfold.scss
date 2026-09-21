@@ -228,3 +228,24 @@ $unf-radius: 4px;
     background: #f2efea;
     border-radius: 0;
 }
+
+// jstree appends its context menu to <body>, outside .unfold-preview, and gives
+// it no z-index. Positioned or transformed parts of a page (the tree's own
+// rows, a theme's icons and sticky bars) then paint over it, so it has to sit
+// above them - and above Bootstrap's modals (1055) and popovers (1070).
+ul.vakata-context {
+    z-index: 2000;
+    border: 1px solid #ced4da;
+    border-radius: $unf-radius;
+    box-shadow: unset;
+
+    li {
+        i {
+            display: none !important;
+        }
+
+        .vakata-contextmenu-sep {
+            display: none !important;
+        }
+    }
+}

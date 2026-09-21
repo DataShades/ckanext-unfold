@@ -5,12 +5,13 @@ from ckan.logic.schema import validator_args
 @validator_args
 def get_preview_schema(
     ignore_empty: types.Validator,
+    ignore_missing: types.Validator,
     unicode_safe: types.Validator,
     boolean_validator: types.Validator,
 ) -> types.Schema:
     return {
         "archive_pass": [ignore_empty, unicode_safe],
-        "show_context_menu": [boolean_validator],
+        "show_context_menu": [ignore_missing, boolean_validator],
     }
 
 

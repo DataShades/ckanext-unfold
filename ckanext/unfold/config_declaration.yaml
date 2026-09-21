@@ -44,7 +44,10 @@ groups:
         default: true
         description: |
           If true, the right click context menu will be enabled by default in the tree view.
-          If false, if node contains a link, it can be opened by left clicking on it.
+          It offers Expand/Collapse for folders and Copy path for every entry; entries
+          that carry a link (only set by custom adapters) also get Open URL and Copy URL.
+          If false, there is no menu, and an entry that carries a link is opened by
+          left clicking on it.
 
       - key: ckanext.unfold.request_timeout
         type: int

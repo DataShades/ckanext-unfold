@@ -6,9 +6,9 @@
 #, fuzzy
 msgid ""
 msgstr ""
-"Project-Id-Version: ckanext-unfold 3.0.2\n"
+"Project-Id-Version: ckanext-unfold 3.0.6\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-09-16 11:58+0300\n"
+"POT-Creation-Date: 2026-09-21 16:51+0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -17,142 +17,134 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Generated-By: Babel 2.18.0\n"
 
-#: ckanext/unfold/plugin.py:43 ckanext/unfold/plugin.py:47
+#: ckanext/unfold/plugin.py:46 ckanext/unfold/plugin.py:50
 msgid "Unfold"
 msgstr ""
 
-#: ckanext/unfold/adapters/_7z.py:26 ckanext/unfold/adapters/_7z.py:47
+#: ckanext/unfold/adapters/_7z.py:25 ckanext/unfold/adapters/_7z.py:49
 #: ckanext/unfold/adapters/rar.py:35
 msgid "Archive is protected with password"
 msgstr ""
 
-#: ckanext/unfold/adapters/_7z.py:30 ckanext/unfold/adapters/base.py:240
+#: ckanext/unfold/adapters/_7z.py:30 ckanext/unfold/adapters/base.py:256
 #, python-format
 msgid "Could not open archive: %(error)s"
 msgstr ""
 
-#: ckanext/unfold/adapters/base.py:65
+#: ckanext/unfold/adapters/base.py:66
 msgid "Table Designer resources are not supported"
 msgstr ""
 
-#: ckanext/unfold/adapters/base.py:97
+#: ckanext/unfold/adapters/base.py:100
 msgid "Could not read the archive"
 msgstr ""
 
-#: ckanext/unfold/adapters/base.py:163 ckanext/unfold/adapters/base.py:174
+#: ckanext/unfold/adapters/base.py:178 ckanext/unfold/adapters/base.py:189
 #, python-format
 msgid "Could not read uploaded archive: %(error)s"
 msgstr ""
 
-#: ckanext/unfold/adapters/rar.py:44 ckanext/unfold/adapters/rar.py:54
+#: ckanext/unfold/adapters/rar.py:46 ckanext/unfold/adapters/rar.py:57
 msgid "The archive password is incorrect"
 msgstr ""
 
-#: ckanext/unfold/adapters/rar.py:57
+#: ckanext/unfold/adapters/rar.py:61
 msgid "The archive is empty"
 msgstr ""
 
-#: ckanext/unfold/adapters/remote.py:51
+#: ckanext/unfold/adapters/remote.py:57
 #, python-format
 msgid "Archive exceeds maximum allowed size for processing: %(size)s"
 msgstr ""
 
-#: ckanext/unfold/adapters/remote.py:125 ckanext/unfold/adapters/remote.py:129
-#: ckanext/unfold/adapters/remote.py:162
+#: ckanext/unfold/adapters/remote.py:131 ckanext/unfold/adapters/remote.py:135
+#: ckanext/unfold/adapters/remote.py:168
 msgid "Could not fetch the archive"
 msgstr ""
 
-#: ckanext/unfold/adapters/remote.py:166
+#: ckanext/unfold/adapters/remote.py:173
 msgid "Too many redirects while fetching the archive"
 msgstr ""
 
-#: ckanext/unfold/adapters/remote.py:199
+#: ckanext/unfold/adapters/remote.py:261
 #, python-format
 msgid "Could not fetch archive: %(error)s"
 msgstr ""
 
-#: ckanext/unfold/adapters/remote.py:337
+#: ckanext/unfold/adapters/remote.py:401
 #, python-format
 msgid "Reading the remote archive took longer than %(seconds)s seconds"
 msgstr ""
 
-#: ckanext/unfold/adapters/remote.py:362
+#: ckanext/unfold/adapters/remote.py:427
 msgid "The server does not support partial downloads (HTTP Range)"
 msgstr ""
 
-#: ckanext/unfold/adapters/remote.py:372 ckanext/unfold/adapters/remote.py:445
+#: ckanext/unfold/adapters/remote.py:438 ckanext/unfold/adapters/remote.py:519
 #, python-format
 msgid "Could not fetch remote archive: %(error)s"
 msgstr ""
 
-#: ckanext/unfold/adapters/remote.py:376
+#: ckanext/unfold/adapters/remote.py:444
 msgid "The server returned an incomplete byte range"
 msgstr ""
 
-#: ckanext/unfold/adapters/remote.py:439
+#: ckanext/unfold/adapters/remote.py:511
 msgid "The server returned an invalid Content-Range"
 msgstr ""
 
-#: ckanext/unfold/adapters/tar.py:51
+#: ckanext/unfold/adapters/tar.py:50
 msgid "Archive decompresses to more than the allowed size"
 msgstr ""
 
-#: ckanext/unfold/assets/js/unfold-init-jstree.js:157
+#: ckanext/unfold/assets/js/unfold-init-jstree.js:162
 msgid "Could not load the archive listing"
 msgstr ""
 
-#: ckanext/unfold/assets/js/unfold-init-jstree.js:168
+#: ckanext/unfold/assets/js/unfold-init-jstree.js:173
 #, python-format
 msgid "Could not load folder %(name)s"
 msgstr ""
 
-#: ckanext/unfold/assets/js/unfold-init-jstree.js:188
+#: ckanext/unfold/assets/js/unfold-init-jstree.js:193
 #, python-format
 msgid "Show more (%(shown)s of %(total)s shown)"
 msgstr ""
 
-#: ckanext/unfold/assets/js/unfold-init-jstree.js:223
+#: ckanext/unfold/assets/js/unfold-init-jstree.js:228
 #, python-format
 msgid "%(count)s entries, folders load when opened"
 msgstr ""
 
-#: ckanext/unfold/assets/js/unfold-init-jstree.js:226
+#: ckanext/unfold/assets/js/unfold-init-jstree.js:231
 msgid "Not available for large archives"
 msgstr ""
 
-#: ckanext/unfold/assets/js/unfold-init-jstree.js:228
+#: ckanext/unfold/assets/js/unfold-init-jstree.js:233
 #, python-format
 msgid "%(count)s entries"
 msgstr ""
 
-#: ckanext/unfold/assets/js/unfold-init-jstree.js:265
+#: ckanext/unfold/assets/js/unfold-init-jstree.js:270
 #, python-format
 msgid "%(count)s matches"
 msgstr ""
 
-#: ckanext/unfold/assets/js/unfold-init-jstree.js:268
+#: ckanext/unfold/assets/js/unfold-init-jstree.js:273
 #, python-format
 msgid "(showing the first %(limit)s)"
 msgstr ""
 
-#: ckanext/unfold/assets/js/unfold-init-jstree.js:280
+#: ckanext/unfold/assets/js/unfold-init-jstree.js:285
 msgid "Search failed"
 msgstr ""
 
-#: ckanext/unfold/assets/js/unfold-init-jstree.js:290
+#: ckanext/unfold/assets/js/unfold-init-jstree.js:295
 msgid "No entries match"
 msgstr ""
 
-#: ckanext/unfold/assets/js/unfold-init-jstree.js:380
+#: ckanext/unfold/assets/js/unfold-init-jstree.js:400
 msgid "Loading..."
-msgstr ""
-
-#: ckanext/unfold/assets/js/unfold-init-jstree.js:502
-msgid "Open URL"
-msgstr ""
-
-#: ckanext/unfold/assets/js/unfold-init-jstree.js:509
-msgid "Copy URL"
 msgstr ""
 
 #: ckanext/unfold/assets/js/unfold-init-jstree.js:518
@@ -163,7 +155,31 @@ msgstr ""
 msgid "Expand"
 msgstr ""
 
-#: ckanext/unfold/logic/action.py:128
+#: ckanext/unfold/assets/js/unfold-init-jstree.js:532
+msgid "Copy path"
+msgstr ""
+
+#: ckanext/unfold/assets/js/unfold-init-jstree.js:533
+msgid "Path copied"
+msgstr ""
+
+#: ckanext/unfold/assets/js/unfold-init-jstree.js:539
+msgid "Open URL"
+msgstr ""
+
+#: ckanext/unfold/assets/js/unfold-init-jstree.js:546
+msgid "Copy URL"
+msgstr ""
+
+#: ckanext/unfold/assets/js/unfold-init-jstree.js:547
+msgid "URL copied"
+msgstr ""
+
+#: ckanext/unfold/assets/js/unfold-init-jstree.js:561
+msgid "Could not copy"
+msgstr ""
+
+#: ckanext/unfold/logic/action.py:133
 msgid "View does not belong to resource"
 msgstr ""
 
@@ -188,17 +204,20 @@ msgid "No"
 msgstr ""
 
 #: ckanext/unfold/templates/unfold_preview.html:20
-#: ckanext/unfold/templates/unfold_preview.html:28
-#: ckanext/unfold/templates/unfold_preview.html:29
-msgid "Search"
+msgid "Search paths"
 msgstr ""
 
 #: ckanext/unfold/templates/unfold_preview.html:20
-msgid "Search the archive"
+msgid "Search the archive by path"
 msgstr ""
 
 #: ckanext/unfold/templates/unfold_preview.html:22
 msgid "Clear search"
+msgstr ""
+
+#: ckanext/unfold/templates/unfold_preview.html:28
+#: ckanext/unfold/templates/unfold_preview.html:29
+msgid "Search"
 msgstr ""
 
 #: ckanext/unfold/templates/unfold_preview.html:32
@@ -215,19 +234,19 @@ msgstr ""
 msgid "Loading"
 msgstr ""
 
-#: ckanext/unfold/templates/unfold_preview.html:53
+#: ckanext/unfold/templates/unfold_preview.html:56
 msgid "Retry"
 msgstr ""
 
-#: ckanext/unfold/templates/unfold_preview.html:60
+#: ckanext/unfold/templates/unfold_preview.html:63
 msgid "Name"
 msgstr ""
 
-#: ckanext/unfold/templates/unfold_preview.html:63
+#: ckanext/unfold/templates/unfold_preview.html:66
 msgid "Size"
 msgstr ""
 
-#: ckanext/unfold/templates/unfold_preview.html:66
+#: ckanext/unfold/templates/unfold_preview.html:69
 msgid "Date Modified"
 msgstr ""
 

@@ -193,6 +193,28 @@ def test_view_of_another_resource_is_rejected(archive_resource):
     assert info.value.error_dict == {"view_id": ["View does not belong to resource"]}
 
 
+def test_context_menu_setting_is_only_stored_when_given(archive_resource):
+    """A view made without the field (a CKAN default view, the API) must
+    follow ``show_context_menu_default`` rather than store ``False``."""
+    view = call_action(
+        "resource_view_create",
+        resource_id=archive_resource["id"],
+        view_type="unfold_view",
+        title="Unfold",
+    )
+    assert "show_context_menu" not in view
+
+    for value, stored in [("false", False), ("true", True)]:
+        view = call_action(
+            "resource_view_create",
+            resource_id=archive_resource["id"],
+            view_type="unfold_view",
+            title="Unfold",
+            show_context_menu=value,
+        )
+        assert view["show_context_menu"] is stored
+
+
 def test_unknown_ids_fail_validation(archive_resource):
     with pytest.raises(tk.ValidationError):
         call_action("get_archive_structure", id="does-not-exist")

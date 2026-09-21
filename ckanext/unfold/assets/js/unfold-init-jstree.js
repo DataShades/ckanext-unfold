@@ -27,6 +27,8 @@ ckan.module("unfold-init-jstree", function ($, _) {
             this.retry = null;
             this.loadState = this.el.find(".unfold-load-state");
             this.meta = this.el.find(".unfold-tree-meta");
+            this.toast = this.el.find(".unfold-toast");
+            this._toastTimer = null;
             this.expandAll = this.el.find(".unf-expand-all");
             this.results = this.el.find(".unfold-search-results");
             this.searchInput = this.el.find(".unf-search-input");
@@ -384,6 +386,13 @@ ckan.module("unfold-init-jstree", function ($, _) {
                     }
                 })
                 .on("activate_node.jstree", (_, data) => {
+                    // The contextmenu plugin activates the node under a right
+                    // click (to highlight the row the menu is for), which is
+                    // not a request to open it or to load more entries.
+                    if (data.event && data.event.type === "contextmenu") {
+                        return;
+                    }
+
                     if (data.node.data && data.node.data.load_more) {
                         this._loadMore(data.node.data.parent);
                         return;
@@ -511,22 +520,6 @@ ckan.module("unfold-init-jstree", function ($, _) {
                 return false;
             }
 
-            if (nodeHref && nodeHref !== "#") {
-                items["openURL"] = {
-                    label: ckan.i18n._("Open URL"),
-                    action: () => {
-                        window.open(nodeHref, "_blank");
-                    },
-                };
-
-                items["copyURL"] = {
-                    label: ckan.i18n._("Copy URL"),
-                    action: () => {
-                        navigator.clipboard.writeText(nodeHref);
-                    },
-                };
-            }
-
             if (node.children.length > 0 || node.state.loaded === false) {
                 items["toggle"] = {
                     label: node.state.opened ? ckan.i18n._("Collapse") : ckan.i18n._("Expand"),
@@ -540,11 +533,85 @@ ckan.module("unfold-init-jstree", function ($, _) {
                 };
             }
 
-            if (!Object.keys(items).length) {
-                return false;
+            // every entry has a path, whatever the adapter, so this item keeps
+            // the menu useful for archives whose nodes carry no link
+            items["copyPath"] = {
+                label: ckan.i18n._("Copy path"),
+                action: () => this._copyText(node.id, ckan.i18n._("Path copied")),
+            };
+
+            // links only come from custom adapters (`a_attr.href`)
+            if (nodeHref && nodeHref !== "#") {
+                items["openURL"] = {
+                    label: ckan.i18n._("Open URL"),
+                    action: () => {
+                        window.open(nodeHref, "_blank");
+                    },
+                };
+
+                items["copyURL"] = {
+                    label: ckan.i18n._("Copy URL"),
+                    action: () => this._copyText(nodeHref, ckan.i18n._("URL copied")),
+                };
             }
 
             return items;
+        },
+
+        /**
+         * Put `text` on the clipboard and say so. `navigator.clipboard` only
+         * exists on secure (HTTPS or localhost) pages, and CKAN is often served
+         * over plain HTTP, so fall back to a selected textarea there; if that
+         * fails too the user is told instead of nothing happening.
+         */
+        _copyText: function (text, successMessage) {
+            const failed = () => this._notify(ckan.i18n._("Could not copy"), true);
+            const copied = () => this._notify(successMessage);
+
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(text).then(copied, failed);
+                return;
+            }
+
+            if (this._copyWithSelection(text)) {
+                copied();
+            } else {
+                failed();
+            }
+        },
+
+        _copyWithSelection: function (text) {
+            const area = document.createElement("textarea");
+            area.value = text;
+            area.setAttribute("readonly", "");
+            area.style.position = "fixed";
+            area.style.opacity = "0";
+            document.body.appendChild(area);
+            area.select();
+
+            let ok = false;
+
+            try {
+                ok = document.execCommand("copy");
+            } catch (e) {
+                ok = false;
+            }
+
+            area.remove();
+
+            return ok;
+        },
+
+        /** Show a short message in the toolbar, announced to screen readers. */
+        _notify: function (message, isError) {
+            clearTimeout(this._toastTimer);
+
+            this.toast
+                .toggleClass("text-danger", !!isError)
+                .toggleClass("text-success", !isError)
+                .text(message);
+
+            this._toastTimer = setTimeout(() => this.toast.text(""), 2500);
         }
     };
 });
