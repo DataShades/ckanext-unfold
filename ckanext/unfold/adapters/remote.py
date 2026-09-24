@@ -1,10 +1,14 @@
 """HTTP access to remote archives.
 
-Two ways of reading a remote file are provided:
+Three ways of reading a remote file are provided:
 
 * :func:`fetch_full` downloads the whole body, aborting once the configured
   byte limit is exceeded. Used for formats whose index cannot be read without
-  the whole file (tar, rar, 7z, ...).
+  the whole file (rar, 7z, ...).
+* :func:`open_stream` hands the body to the parser as it arrives, for formats
+  that are read front to back (tar). Parsing overlaps the download, nothing
+  is written to disk, and a parser that stops early (the entry limit) ends
+  the transfer there.
 * :func:`open_remote` returns a seekable file object backed by HTTP Range
   requests. Formats that keep their index at known offsets (zip) can then be
   parsed while transferring only the parts the parser actually reads. This is
@@ -23,7 +27,8 @@ import logging
 import socket
 import tempfile
 import time
-from collections.abc import Iterable
+from collections.abc import Iterable, Iterator
+from contextlib import contextmanager
 from typing import IO
 from urllib.parse import urljoin, urlparse
 
@@ -53,16 +58,31 @@ ALLOWED_SCHEMES = frozenset({"http", "https"})
 MAX_REDIRECTS = 5
 
 
-def limit_message(max_bytes: int) -> str:
-    return tk._("Archive exceeds maximum allowed size for processing: %(size)s") % {
-        "size": printable_file_size(max_bytes)
-    }
+def limit_message(max_bytes: int, size: int | None = None) -> str:
+    """Tell a visitor the archive is over the limit, with its size if known."""
+    if size is None:
+        return tk._(
+            "This archive is larger than the %(limit)s preview limit. "
+            "Download it to see its contents."
+        ) % {"limit": printable_file_size(max_bytes)}
+
+    return tk._(
+        "This archive is %(size)s, larger than the %(limit)s preview limit. "
+        "Download it to see its contents."
+    ) % {"size": printable_file_size(size), "limit": printable_file_size(max_bytes)}
 
 
-def check_limit(size: int | None, max_bytes: int) -> None:
-    """Raise if ``size`` exceeds ``max_bytes``. ``None`` (unknown) passes."""
+def check_limit(size: int | None, max_bytes: int, *, total: bool = False) -> None:
+    """Raise if ``size`` exceeds ``max_bytes``. ``None`` (unknown) passes.
+
+    ``total`` says ``size`` is the whole archive (its declared size or
+    Content-Length) rather than the bytes read so far, so the message can
+    name it.
+    """
     if size is not None and size > max_bytes:
-        raise UnfoldError(limit_message(max_bytes), code=TOO_LARGE)
+        raise UnfoldError(
+            limit_message(max_bytes, size if total else None), code=TOO_LARGE
+        )
 
 
 def content_length(value: str | None) -> int | None:
@@ -253,7 +273,11 @@ def fetch_full(url: str, max_bytes: int, timeout: float = DEFAULT_TIMEOUT) -> IO
     try:
         with safe_get(url, timeout=timeout, stream=True) as resp:
             resp.raise_for_status()
-            check_limit(content_length(resp.headers.get("content-length")), max_bytes)
+            check_limit(
+                content_length(resp.headers.get("content-length")),
+                max_bytes,
+                total=True,
+            )
 
             sink = download_limited(resp, max_bytes)
     except requests.RequestException as e:
@@ -270,6 +294,81 @@ def fetch_full(url: str, max_bytes: int, timeout: float = DEFAULT_TIMEOUT) -> IO
         time.monotonic() - started,
     )
     return sink
+
+
+class _ResponseStream(io.RawIOBase):
+    """Forward-only file object over a streamed response body.
+
+    Reads go through ``iter_content``, so a dropped connection surfaces as a
+    ``requests`` exception (see :func:`open_stream`) and a ``Content-Encoding``
+    is decoded, as in :func:`download_limited`. Aborts once more than
+    ``max_bytes`` have arrived, in case Content-Length was missing or wrong.
+    """
+
+    def __init__(self, resp: requests.Response, max_bytes: int) -> None:
+        super().__init__()
+        self._chunks = resp.iter_content(chunk_size=CHUNK_SIZE)
+        self._chunk = memoryview(b"")
+        self.max_bytes = max_bytes
+        self.bytes_read = 0
+
+    def readable(self) -> bool:
+        return True
+
+    def readinto(self, buffer: bytearray | memoryview) -> int:  # type: ignore[override]
+        while not self._chunk:
+            chunk = next(self._chunks, None)
+
+            if chunk is None:
+                return 0
+
+            self.bytes_read += len(chunk)
+            check_limit(self.bytes_read, self.max_bytes)
+            self._chunk = memoryview(chunk)
+
+        size = min(len(buffer), len(self._chunk))
+        buffer[:size] = self._chunk[:size]
+        self._chunk = self._chunk[size:]
+
+        return size
+
+
+@contextmanager
+def open_stream(
+    url: str, max_bytes: int, timeout: float = DEFAULT_TIMEOUT
+) -> Iterator[IO[bytes]]:
+    """Open a remote file as a forward-only stream within ``max_bytes``.
+
+    The same limits as :func:`fetch_full` apply -- an advertised
+    Content-Length over the limit is rejected up front, and the stream aborts
+    past it -- but the body is never stored: leaving the ``with`` block closes
+    the connection, so whatever the caller did not read is not transferred.
+    """
+    started = time.monotonic()
+    log.info("Streaming %s (limit %s bytes)", url, max_bytes)
+
+    try:
+        with safe_get(url, timeout=timeout, stream=True) as resp:
+            resp.raise_for_status()
+            check_limit(
+                content_length(resp.headers.get("content-length")),
+                max_bytes,
+                total=True,
+            )
+
+            raw = _ResponseStream(resp, max_bytes)
+            yield io.BufferedReader(raw, CHUNK_SIZE)
+    except requests.RequestException as e:
+        raise UnfoldError(
+            tk._("Could not fetch archive: %(error)s") % {"error": e}, code=FETCH_FAILED
+        ) from e
+
+    log.info(
+        "Streamed %s bytes from %s in %.1fs",
+        raw.bytes_read,
+        url,
+        time.monotonic() - started,
+    )
 
 
 class RemoteRangeFile(io.RawIOBase):
@@ -498,7 +597,9 @@ def open_remote(
                     "%s ignores Range requests; downloading the whole file", url
                 )
                 check_limit(
-                    content_length(resp.headers.get("content-length")), max_bytes
+                    content_length(resp.headers.get("content-length")),
+                    max_bytes,
+                    total=True,
                 )
                 sink = download_limited(resp, max_bytes)
                 sink.seek(0)

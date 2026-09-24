@@ -3,6 +3,8 @@ from __future__ import annotations
 import io
 import logging
 import os
+from collections.abc import Iterator
+from contextlib import contextmanager
 from typing import IO, Any
 
 import ckan.plugins.toolkit as tk
@@ -116,7 +118,7 @@ class BaseAdapter:
 
         ``None`` means the size is unknown and is allowed through.
         """
-        remote.check_limit(size, unf_config.get_max_file_size())
+        remote.check_limit(size, unf_config.get_max_file_size(), total=True)
 
     def get_file_object(self, url: str | None = None) -> IO[bytes]:
         """Return the resource's content as a seekable binary file object.
@@ -140,6 +142,27 @@ class BaseAdapter:
             unf_config.get_max_file_size(),
             unf_config.get_request_timeout(),
         )
+
+    @contextmanager
+    def open_stream(self) -> Iterator[IO[bytes]]:
+        """The resource's content as a forward-only stream.
+
+        For formats read front to back (tar): a remote file is parsed while it
+        downloads instead of after, and is never written to disk (see
+        ``remote.open_stream``). An upload is opened as in
+        ``get_file_object``, which reads it from storage anyway.
+        """
+        if self.is_upload:
+            with self._read_upload() as fileobj:
+                yield fileobj
+            return
+
+        with remote.open_stream(
+            self.filepath,
+            unf_config.get_max_file_size(),
+            unf_config.get_request_timeout(),
+        ) as stream:
+            yield stream
 
     def _read_upload(self) -> IO[bytes]:
         """Open an uploaded resource through whatever uploader serves it.

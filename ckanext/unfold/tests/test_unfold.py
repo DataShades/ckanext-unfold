@@ -1,7 +1,9 @@
 """Adapter-level tests: every format over a mocked HTTP server."""
 
 import io
+import os
 import re
+import tarfile
 import zipfile
 
 import py7zr
@@ -280,9 +282,13 @@ def test_declared_size_over_limit_is_rejected_before_download(requests_mock):
     adapter = utils.get_adapter_for_resource(resource)
     assert adapter is not None
 
-    with pytest.raises(exception.UnfoldError, match="exceeds maximum allowed"):
+    with pytest.raises(exception.UnfoldError) as info:
         adapter(resource, {}).build_archive_tree()
 
+    assert str(info.value) == (
+        "This archive is 2.0 KB, larger than the 1.0 KB preview limit. "
+        "Download it to see its contents."
+    )
     assert requests_mock.call_count == 0
 
 
@@ -296,7 +302,7 @@ def test_unparsable_declared_size_is_ignored(archive_url):
 
     # the deb fixture is 1.4 MB, so the download itself hits the limit:
     # the declared size was ignored, not the limit
-    with pytest.raises(exception.UnfoldError, match="exceeds maximum allowed"):
+    with pytest.raises(exception.UnfoldError, match="preview limit"):
         adapter(resource, {}).build_archive_tree()
 
 
@@ -306,7 +312,7 @@ def test_full_download_rejects_advertised_content_length(requests_mock):
     url = BASE_URL + "big.tar"
     requests_mock.get(url, content=b"x" * 2048, headers={"Content-Length": "2048"})
 
-    with pytest.raises(exception.UnfoldError, match="exceeds maximum allowed") as info:
+    with pytest.raises(exception.UnfoldError, match=r"is 2\.0 KB, larger than") as info:
         build_tree("tar", url)
 
     assert info.value.code == exception.TOO_LARGE
@@ -316,10 +322,13 @@ def test_full_download_rejects_advertised_content_length(requests_mock):
 @pytest.mark.usefixtures("with_request_context")
 def test_full_download_aborts_stream_without_content_length(requests_mock):
     url = BASE_URL + "big.tar"
-    # no Content-Length header: only the streaming guard can catch it
+    # no Content-Length header: only the streaming guard can catch it, and it
+    # cannot know the archive's size
     requests_mock.get(url, content=b"x" * 2048)
 
-    with pytest.raises(exception.UnfoldError, match="exceeds maximum allowed") as info:
+    with pytest.raises(
+        exception.UnfoldError, match=r"is larger than the 1\.0 KB preview limit"
+    ) as info:
         build_tree("tar", url)
 
     assert info.value.code == exception.TOO_LARGE
@@ -334,6 +343,61 @@ def test_http_error_becomes_unfold_error(requests_mock):
         build_tree("tar", url)
 
     assert info.value.code == exception.FETCH_FAILED
+
+
+# --- tar: parsed while it downloads -------------------------------------------
+
+
+class CountingBody(io.BytesIO):
+    """A response body that remembers how much of it was read."""
+
+    def __init__(self, data: bytes):
+        super().__init__(data)
+        self.bytes_read = 0
+
+    def read(self, size=-1):
+        chunk = super().read(size)
+        self.bytes_read += len(chunk)
+        return chunk
+
+
+@pytest.mark.parametrize("file_format", ["tar", "tar.gz", "tar.xz", "tar.bz2"])
+@pytest.mark.usefixtures("with_request_context")
+def test_tar_is_parsed_while_it_downloads(archive_url, monkeypatch, file_format):
+    """Tar is read front to back, so it goes straight into the parser instead
+    of being downloaded to a temporary file first."""
+
+    def download(*_, **__):
+        raise AssertionError("the archive was downloaded before being parsed")
+
+    monkeypatch.setattr(remote, "fetch_full", download)
+
+    nodes = build_tree(file_format, archive_url(f"test_archive.{file_format}"))
+
+    assert len(nodes) == FORMAT_NODE_COUNTS[file_format]
+
+
+@pytest.mark.ckan_config("ckanext.unfold.max_entries", 5)
+@pytest.mark.usefixtures("with_request_context")
+def test_tar_stops_downloading_at_the_entry_limit(requests_mock):
+    """Once the entry limit is reached the rest of the archive is not transferred."""
+    buffer = io.BytesIO()
+
+    with tarfile.open(fileobj=buffer, mode="w:gz") as tar:
+        for i in range(300):
+            info = tarfile.TarInfo(f"file{i:03}.bin")
+            info.size = 20_000
+            tar.addfile(info, io.BytesIO(os.urandom(info.size)))
+
+    data = buffer.getvalue()
+    body = CountingBody(data)
+    url = BASE_URL + "many.tar.gz"
+    requests_mock.get(url, body=body)
+
+    nodes = build_tree("tar.gz", url)
+
+    assert len(nodes) == 5
+    assert body.bytes_read < len(data) / 10
 
 
 # --- zip: reading only the central directory ---------------------------------
@@ -460,7 +524,7 @@ def test_zip_limit_applies_to_bytes_transferred(requests_mock, archive_url):
     url = BASE_URL + "big.zip"
     requests_mock.get(url, content=range_response(data))
 
-    with pytest.raises(exception.UnfoldError, match="exceeds maximum allowed"):
+    with pytest.raises(exception.UnfoldError, match="preview limit"):
         build_tree("zip", url)
 
     # a small archive is unaffected by the same limit
@@ -488,7 +552,7 @@ def test_zip_server_ignoring_range_is_capped(requests_mock):
     # no Content-Length: the streaming guard must catch it
     requests_mock.get(url, content=read_fixture("test_archive.zip"))
 
-    with pytest.raises(exception.UnfoldError, match="exceeds maximum allowed"):
+    with pytest.raises(exception.UnfoldError, match="preview limit"):
         build_tree("zip", url)
 
 

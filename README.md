@@ -79,8 +79,11 @@ instead of a readable error. A job has `ckanext.unfold.job_timeout` seconds.
 
 Remote ZIP archives are read through HTTP Range requests, so only the central
 directory is transferred. A multi-gigabyte ZIP referenced by URL previews in a
-few requests as long as the hosting server honours `Range`. Other formats are
-downloaded in full and are subject to `ckanext.unfold.max_file_size`.
+few requests as long as the hosting server honours `Range`. Tar archives
+(`.tar`, `.tar.gz`, `.tar.xz`, `.tar.bz2`) have no index to jump to, so they are
+streamed into the parser as they download, without a temporary file; the
+transfer stops as soon as `ckanext.unfold.max_entries` is reached. Other formats
+are downloaded in full. Both are subject to `ckanext.unfold.max_file_size`.
 
 ### API
 

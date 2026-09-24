@@ -7,7 +7,7 @@ import logging
 import lzma
 from tarfile import TarError, TarInfo
 from tarfile import open as tar_open
-from typing import IO
+from typing import IO, Protocol
 
 import ckan.plugins.toolkit as tk
 
@@ -15,9 +15,16 @@ import ckanext.unfold.config as unf_config
 import ckanext.unfold.exception as unf_exception
 import ckanext.unfold.types as unf_types
 from ckanext.unfold.adapters.base import BaseAdapter
-from ckanext.unfold.formatting import datetime_from_timestamp
+from ckanext.unfold.formatting import datetime_from_timestamp, printable_file_size
 
 log = logging.getLogger(__name__)
+
+
+class _Readable(Protocol):
+    """All the tar pipeline needs from a stream: raw bytes or a decompressor
+    (``GzipFile`` is a ``BufferedIOBase``, not an ``IO[bytes]``)."""
+
+    def read(self, size: int = -1, /) -> bytes: ...
 
 
 class _BoundedReader(io.RawIOBase):
@@ -32,7 +39,7 @@ class _BoundedReader(io.RawIOBase):
     decompression finishes.
     """
 
-    def __init__(self, fileobj: IO[bytes], budget: int) -> None:
+    def __init__(self, fileobj: _Readable, budget: int) -> None:
         super().__init__()
         self._fileobj = fileobj
         self._budget = budget
@@ -47,7 +54,11 @@ class _BoundedReader(io.RawIOBase):
 
         if self._read > self._budget:
             raise unf_exception.UnfoldError(
-                tk._("Archive decompresses to more than the allowed size"),
+                tk._(
+                    "This archive unpacks to more than the %(limit)s preview limit. "
+                    "Download it to see its contents."
+                )
+                % {"limit": printable_file_size(self._budget)},
                 code=unf_exception.TOO_LARGE,
             )
 
@@ -61,7 +72,7 @@ class TarAdapter(BaseAdapter):
     open_errors = (TarError,)
 
     @staticmethod
-    def _decompress(fileobj: IO[bytes]) -> IO[bytes]:
+    def _decompress(fileobj: IO[bytes]) -> _Readable:
         """Build a decompressing file object from the raw compressed bytes.
 
         Plain, uncompressed tar: nothing to decompress.
@@ -73,7 +84,9 @@ class TarAdapter(BaseAdapter):
 
         Tar doesn't allow us to download it partially and fetch only the
         file list, because the information about each file is stored
-        alongside its data rather than in one central index. Read as a
+        alongside its data rather than in one central index. It is streamed
+        into the parser instead (see ``open_stream``): parsing overlaps the
+        download, and stopping at the entry limit ends the transfer. Read as a
         forward-only stream (``mode="r|"``) rather than the seekable
         ``"r:"`` mode: tarfile skips a member's data by seeking a seekable
         stream, and seeking a compressed stream still decompresses
@@ -83,7 +96,7 @@ class TarAdapter(BaseAdapter):
         limit = unf_config.get_max_entries()
         entries: list[unf_types.Entry] = []
 
-        with self.get_file_object() as raw:
+        with self.open_stream() as raw:
             fileobj = self._decompress(raw)
 
             with tar_open(
@@ -116,17 +129,17 @@ class TarAdapter(BaseAdapter):
 
 class TarGzAdapter(TarAdapter):
     @staticmethod
-    def _decompress(fileobj: IO[bytes]) -> IO[bytes]:
+    def _decompress(fileobj: IO[bytes]) -> _Readable:
         return gzip.GzipFile(fileobj=fileobj, mode="rb")
 
 
 class TarXzAdapter(TarAdapter):
     @staticmethod
-    def _decompress(fileobj: IO[bytes]) -> IO[bytes]:
+    def _decompress(fileobj: IO[bytes]) -> _Readable:
         return lzma.LZMAFile(fileobj)
 
 
 class TarBz2Adapter(TarAdapter):
     @staticmethod
-    def _decompress(fileobj: IO[bytes]) -> IO[bytes]:
+    def _decompress(fileobj: IO[bytes]) -> _Readable:
         return bz2.BZ2File(fileobj)
