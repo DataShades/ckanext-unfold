@@ -117,7 +117,7 @@ class TarAdapter(BaseAdapter):
 class TarGzAdapter(TarAdapter):
     @staticmethod
     def _decompress(fileobj: IO[bytes]) -> IO[bytes]:
-        return gzip.GzipFile(fileobj=fileobj)
+        return gzip.GzipFile(fileobj=fileobj, mode="rb")
 
 
 class TarXzAdapter(TarAdapter):
