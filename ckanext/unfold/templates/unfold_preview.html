@@ -11,6 +11,7 @@
     data-module-resource-id="{{ resource.id }}"
     data-module-resource-view-id="{{ resource_view.id }}"
     data-module-page-size="{{ page_size }}"
+    data-module-can-rebuild="{{ can_rebuild | tojson }}"
     data-module-show-context-menu="{{ (show_context_menu_default if resource_view.show_context_menu is undefined else resource_view.show_context_menu) | tojson }}">
 
     <div class="ckanext-jstree-search">
@@ -54,6 +55,7 @@
         <i class="fa fa-exclamation-triangle" aria-hidden="true"></i>
         <span class="unfold-error-message"></span>
         <button class="unf-tree-retry btn btn-sm btn-outline-danger" type="button" hidden>{{ _("Retry") }}</button>
+        <button class="unf-tree-rebuild btn btn-sm btn-outline-danger" type="button" hidden>{{ _("Rebuild") }}</button>
     </div>
 
     {# shown while a background job reads the archive, see unfold-init-jstree.js #}

@@ -11,9 +11,7 @@ ckan.module("unfold-init-jstree", function ($, _) {
             searchDebounce: 250,
             pageSize: 500,
             showContextMenu: true,
-            // While a background job reads the archive: the first status check
-            // comes after `pollInterval` ms, each next one 1.5x later up to
-            // `pollMaxInterval`, and the wait is given up after `waitTimeout`.
+            canRebuild: false,
             pollInterval: 1500,
             pollMaxInterval: 5000,
             waitTimeout: 300000,
@@ -29,6 +27,7 @@ ckan.module("unfold-init-jstree", function ($, _) {
             this.errorBlock = this.el.find(".unf-tree-error");
             this.errorMessage = this.errorBlock.find(".unfold-error-message");
             this.retryButton = this.el.find(".unf-tree-retry");
+            this.rebuildButton = this.el.find(".unf-tree-rebuild");
             this.processing = this.el.find(".unf-tree-processing");
             // re-runs the request whose failure is currently displayed
             this.retry = null;
@@ -74,6 +73,7 @@ ckan.module("unfold-init-jstree", function ($, _) {
                     this.retry();
                 }
             });
+            this.rebuildButton.click(this._rebuild);
 
             this._observeMetadata();
             this._initJsTree();
@@ -457,13 +457,15 @@ ckan.module("unfold-init-jstree", function ($, _) {
          * Show the `{code, message}` error the API returns for an archive it
          * could not list. Only a failed download (`fetch_failed`) keeps the
          * `options.retry` button: a wrong password or an archive over the size
-         * limit fails the same way every time.
+         * limit fails the same way every time. Any of the others can still be
+         * rebuilt by someone who can edit the resource.
          */
         _displayApiError: function (error, options) {
             options = $.extend({}, options);
 
             if (error.code !== "fetch_failed") {
                 delete options.retry;
+                options.rebuild = true;
             }
 
             this._displayErrorReason(error.message, options);
@@ -473,6 +475,7 @@ ckan.module("unfold-init-jstree", function ($, _) {
          * Show `error` above the widget.
          *
          * `options.retry` adds a Retry button that calls it.
+         * `options.rebuild` adds the Rebuild button, if `canRebuild`.
          * `options.fatal` means nothing was loaded at all, so the tree
          * and its header are taken down with it - otherwise they keep showing
          * whatever loaded before the failure.
@@ -482,6 +485,7 @@ ckan.module("unfold-init-jstree", function ($, _) {
 
             this.retry = options.retry || null;
             this.retryButton.prop("hidden", !this.retry);
+            this.rebuildButton.prop("hidden", !(options.rebuild && this.options.canRebuild));
             this.errorMessage.text(error);
             this.errorBlock.prop("hidden", false);
 
@@ -495,6 +499,37 @@ ckan.module("unfold-init-jstree", function ($, _) {
         _clearError: function () {
             this.retry = null;
             this.errorBlock.prop("hidden", true);
+            this.rebuildButton.prop("hidden", true);
+        },
+
+        /**
+         * Have the server drop the archive's index and the failure recorded
+         * for it, then load the tree again: it either reads the archive or
+         * waits for the job `rebuild_archive_index` queued.
+         */
+        _rebuild: function () {
+            const csrfField = $("meta[name=csrf_field_name]").attr("content");
+
+            this.rebuildButton.prop("disabled", true);
+
+            $.ajax({
+                url: this.sandbox.url("/api/action/rebuild_archive_index"),
+                type: "POST",
+                contentType: "application/json",
+                data: JSON.stringify(this._payload({})),
+                headers: { "X-CSRFToken": $("meta[name=" + csrfField + "]").attr("content") },
+            })
+                .done(() => {
+                    this._clearError();
+                    this.tree.jstree(true).refresh();
+                })
+                .fail((xhr) => {
+                    this._displayErrorReason(
+                        this._requestFailure(ckan.i18n._("Could not rebuild the archive listing"), xhr),
+                        { rebuild: true, fatal: true }
+                    );
+                })
+                .always(() => this.rebuildButton.prop("disabled", false));
         },
 
         _initJsTree: function () {

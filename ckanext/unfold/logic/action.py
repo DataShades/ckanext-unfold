@@ -14,6 +14,7 @@ import ckanext.unfold.index as unf_index
 import ckanext.unfold.jobs as unf_jobs
 import ckanext.unfold.logic.schema as unf_schema
 import ckanext.unfold.types as unf_types
+import ckanext.unfold.utils as unf_utils
 
 
 log = logging.getLogger(__name__)
@@ -49,6 +50,8 @@ def get_archive_structure(
     it and ``{"status": "processing"}`` comes back instead, see
     :func:`get_archive_status`.
     """
+    tk.check_access("get_archive_structure", context, data_dict)
+
     try:
         resource, resource_view = _load_resource_and_view(context, data_dict)
         index = unf_jobs.get_index(resource, resource_view)
@@ -91,6 +94,8 @@ def search_archive_structure(
     whether the result was truncated. Answers ``{"status": "processing"}``
     like ``get_archive_structure`` if the index has expired since.
     """
+    tk.check_access("search_archive_structure", context, data_dict)
+
     try:
         resource, resource_view = _load_resource_and_view(context, data_dict)
         index = unf_jobs.get_index(resource, resource_view)
@@ -137,7 +142,36 @@ def get_archive_status(
     ``missing`` (nothing is cached and nothing is running; asking
     ``get_archive_structure`` starts a job).
     """
+    tk.check_access("get_archive_status", context, data_dict)
+
     resource, resource_view = _load_resource_and_view(context, data_dict)
+
+    return unf_jobs.get_status(resource, resource_view)
+
+
+@validate(unf_schema.rebuild_archive_index)
+def rebuild_archive_index(
+    context: types.Context, data_dict: dict[str, Any]
+) -> dict[str, Any]:
+    """Drop an archive's index, and any failure recorded for it, and read it
+    again.
+
+    A failure such as ``unreadable`` is served from Redis until the cache TTL
+    runs out, since it would come out the same on every attempt -- unless what
+    caused it was fixed on the server side. This is the way out for people who
+    can edit the resource.
+
+    Returns the same ``{"status": ...}`` as ``get_archive_status``:
+    ``processing`` when a background job was queued, ``missing`` when the next
+    ``get_archive_structure`` call is to read the archive itself.
+    """
+    tk.check_access("rebuild_archive_index", context, data_dict)
+
+    resource, resource_view = _load_resource_and_view(context, data_dict)
+    unf_utils.UnfoldCacheManager.delete(resource["id"])
+
+    if unf_jobs.can_build_in_background():
+        unf_jobs.enqueue_build(resource, resource_view)
 
     return unf_jobs.get_status(resource, resource_view)
 

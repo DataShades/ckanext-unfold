@@ -95,6 +95,12 @@ downloaded in full and are subject to `ckanext.unfold.max_file_size`.
   as `{"status": "ready" | "processing" | "failed" | "missing"}`. `failed` comes
   with the `error` described below; `missing` means nothing is cached and
   nothing is running, and asking `get_archive_structure` starts a job.
+- `rebuild_archive_index` (`id`, optional `view_id`; POST, needs
+  `resource_update` on the resource): drops the cached listing and any failure
+  recorded for it, queues a new job, and returns the same `status` as
+  `get_archive_status`. A failure such as `unreadable` is otherwise served until
+  `ckanext.unfold.cache_ttl` runs out; the widget offers it as a "Rebuild"
+  button to people who can edit the resource.
 
 `get_archive_structure` and `search_archive_structure` answer
 `{"status": "processing"}` instead of a listing while a job is reading the

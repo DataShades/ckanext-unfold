@@ -164,6 +164,73 @@ test("Retry repeats the failed root request and clears the error", async (t) => 
     assert.equal(page.el.find(".unfold-tree-meta").text(), "1 entries");
 });
 
+test("an editor can rebuild an archive whose read failed", async (t) => {
+    let reads = 0;
+    const page = await mount({
+        options: { canRebuild: true },
+        api: {
+            get_archive_structure: () =>
+                ++reads === 1
+                    ? { error: { code: "unreadable", message: "Could not read the archive" } }
+                    : fullResponse(node("a.txt")),
+            rebuild_archive_index: () => ({ status: "missing" }),
+        },
+    });
+    t.after(page.destroy);
+
+    assert.ok(visible(page, ".unf-tree-rebuild"));
+    assert.ok(!visible(page, ".unf-tree-retry"));
+
+    page.el.find(".unf-tree-rebuild").click();
+    await waitFor(() => page.tree().get_node("a.txt", true), "the archive");
+
+    const [rebuild] = page.callsTo("rebuild_archive_index");
+    assert.deepEqual(JSON.parse(rebuild.data), { id: "res-1", view_id: "view-1" });
+    assert.equal(reads, 2);
+    assert.ok(!visible(page, ".unf-tree-error"));
+    assert.ok(!visible(page, ".unf-tree-rebuild"));
+    assert.ok(visible(page, ".unfold-panel"));
+});
+
+test("Rebuild is only offered to editors, and not for a failed download", async (t) => {
+    const cases = [
+        [{ canRebuild: false }, "unreadable", false],
+        [{ canRebuild: true }, "fetch_failed", false],
+        [{ canRebuild: true }, "too_large", true],
+    ];
+
+    for (const [options, code, offered] of cases) {
+        const page = await mount({
+            options,
+            api: { get_archive_structure: () => ({ error: { code, message: "it broke" } }) },
+        });
+
+        assert.equal(visible(page, ".unf-tree-rebuild"), offered, `Rebuild for ${code}, ${JSON.stringify(options)}`);
+
+        page.destroy();
+    }
+});
+
+test("a failed rebuild request is reported and can be tried again", async (t) => {
+    const page = await mount({
+        options: { canRebuild: true },
+        api: {
+            get_archive_structure: () => ({ error: { code: "unreadable", message: "Could not read the archive" } }),
+            rebuild_archive_index: () => ({ fail: 403 }),
+        },
+    });
+    t.after(page.destroy);
+
+    page.el.find(".unf-tree-rebuild").click();
+    await waitFor(
+        () => page.el.find(".unfold-error-message").text() === "Could not rebuild the archive listing (HTTP 403)",
+        "the error"
+    );
+
+    assert.ok(visible(page, ".unf-tree-rebuild"));
+    assert.equal(page.el.find(".unf-tree-rebuild").prop("disabled"), false);
+});
+
 test("an HTTP error on the root names the status and offers Retry", async (t) => {
     const page = await mount({ api: { get_archive_structure: () => ({ fail: 500 }) } });
     t.after(page.destroy);

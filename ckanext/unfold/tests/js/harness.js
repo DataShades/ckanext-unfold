@@ -33,6 +33,7 @@ const MARKUP = `
   <div class="unf-tree-error" hidden>
     <span class="unfold-error-message"></span>
     <button class="unf-tree-retry" type="button" hidden></button>
+    <button class="unf-tree-rebuild" type="button" hidden></button>
   </div>
   <div class="unf-tree-processing" hidden></div>
   <div class="unfold-panel">

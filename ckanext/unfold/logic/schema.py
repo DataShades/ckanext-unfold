@@ -61,3 +61,17 @@ def get_archive_status(
         "id": [not_empty, unicode_safe, resource_id_exists],
         "view_id": [ignore_empty, unicode_safe, resource_view_id_exists],
     }
+
+
+@validator_args
+def rebuild_archive_index(
+    not_empty: types.Validator,
+    unicode_safe: types.Validator,
+    resource_id_exists: types.Validator,
+    resource_view_id_exists: types.Validator,
+    ignore_empty: types.Validator,
+) -> types.Schema:
+    return {
+        "id": [not_empty, unicode_safe, resource_id_exists],
+        "view_id": [ignore_empty, unicode_safe, resource_view_id_exists],
+    }

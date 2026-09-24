@@ -97,6 +97,8 @@ def test_preview_hands_the_module_its_options(monkeypatch):
     assert widget["data-module-resource-id"] == "res-1"
     assert widget["data-module-resource-view-id"] == "view-1"
     assert widget["data-module-page-size"] == "250"
+    # the rendered resource does not exist, so nobody can rebuild it
+    assert widget["data-module-can-rebuild"] == "false"
 
 
 @pytest.mark.parametrize(
@@ -145,6 +147,7 @@ def test_preview_starts_quiet():
     for name in [
         "unf-tree-error",
         "unf-tree-retry",
+        "unf-tree-rebuild",
         "unf-tree-processing",
         "unfold-search-results",
         "jstree-search-clear",

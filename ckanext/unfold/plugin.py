@@ -16,6 +16,7 @@ from ckanext.unfold.logic.schema import get_preview_schema
 
 
 @tk.blanket.actions
+@tk.blanket.auth_functions
 @tk.blanket.validators
 @tk.blanket.config_declarations
 @tk.blanket.cli
@@ -65,7 +66,17 @@ class UnfoldPlugin(p.SingletonPlugin):
         return {
             "show_context_menu_default": unf_config.get_context_menu_default(),
             "page_size": unf_config.get_page_size(),
+            "can_rebuild": self._can_rebuild(context, data_dict["resource"]),
         }
+
+    @staticmethod
+    def _can_rebuild(context: types.Context, resource: dict[str, Any]) -> bool:
+        try:
+            tk.check_access("rebuild_archive_index", context, {"id": resource["id"]})
+        except (tk.NotAuthorized, tk.ObjectNotFound):
+            return False
+
+        return True
 
     # IResourceController
 

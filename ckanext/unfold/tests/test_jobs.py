@@ -311,7 +311,29 @@ def test_status_of_an_unknown_resource_fails_validation():
         call_action("get_archive_status", id="does-not-exist")
 
 
-# The status records behind all of the above
+def test_rebuild_forgets_a_recorded_failure_and_reads_again(csv_resource, queued):
+    resource_id = csv_resource["id"]
+    call_action("get_archive_structure", id=resource_id)
+    jobs.build_archive_index(resource_id, None)
+    assert call_action("get_archive_status", id=resource_id)["status"] == "failed"
+
+    result = call_action("rebuild_archive_index", id=resource_id)
+
+    assert result == {"status": "processing"}
+    assert len(queued) == 2
+    assert call_action("get_archive_status", id=resource_id) == {"status": "processing"}
+
+
+def test_rebuild_without_a_worker_leaves_the_read_to_the_next_request(
+    csv_resource, queued, monkeypatch
+):
+    resource_id = csv_resource["id"]
+    Manager.fail_build(resource_id, "v1", "unreadable", "Could not read the archive")
+    monkeypatch.setattr(jobs, "has_worker", lambda: False)
+
+    assert call_action("rebuild_archive_index", id=resource_id) == {"status": "missing"}
+    assert Manager.status(resource_id) is None
+    assert queued == []
 
 
 def test_only_one_claim_per_version_wins():
